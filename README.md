@@ -1,11 +1,23 @@
-<picture>
-    <source srcset="https://raw.githubusercontent.com/leptos-rs/leptos/main/docs/logos/Leptos_logo_Solid_White.svg" media="(prefers-color-scheme: dark)">
-    <img src="https://raw.githubusercontent.com/leptos-rs/leptos/main/docs/logos/Leptos_logo_RGB.svg" alt="Leptos Logo">
-</picture>
+# Web application demo using Rust and Wasm
 
-# Leptos Axum Starter Template
+This is a demo application based on the [RealWorld example
+app](https://github.com/gothinkster/realworld) implemented in Rust, compiled
+to Wasm for the browser.
 
-This is a template for use with the [Leptos](https://github.com/leptos-rs/leptos) web framework and the [cargo-leptos](https://github.com/akesson/cargo-leptos) tool using [Axum](https://github.com/tokio-rs/axum).
+Technology used:
+- [Leptos](https://github.com/leptos-rs/leptos) web framework, with
+- [Axum](https://github.com/tokio-rs/axum) and
+- [cargo-leptos](https://github.com/akesson/cargo-leptos) build tool.
+
+## Licensing
+
+The project is started from the [Leptos Axum
+template](https://github.com/leptos-rs/start-axum), which is in the public
+domain (using [Unlicense](https://unlicense.org/)).
+
+Design, including the initial HTML, is licensed to RealWorld under MIT.
+
+All other content is licensed under MIT to me.
 
 ## Creating your template repo
 
