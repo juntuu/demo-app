@@ -1,3 +1,5 @@
+#![allow(clippy::empty_docs)]
+
 use crate::error_template::{AppError, ErrorTemplate};
 use leptos::*;
 use leptos_meta::*;
