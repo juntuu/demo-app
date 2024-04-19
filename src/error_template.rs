@@ -59,12 +59,10 @@ pub fn ErrorTemplate(
             // a unique key for each item as a reference
             key=|(index, _error)| *index
             // renders each item to a view
-            children=move |error| {
-                let error_string = error.1.to_string();
-                let error_code = error.1.status_code();
+            children=move |(_, error)| {
                 view! {
-                    <h2>{error_code.to_string()}</h2>
-                    <p>"Error: " {error_string}</p>
+                    <h2>{error.status_code().to_string()}</h2>
+                    <p>"Error: " {error.to_string()}</p>
                 }
             }
         />
