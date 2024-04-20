@@ -15,7 +15,8 @@ The project is started from the [Leptos Axum
 template](https://github.com/leptos-rs/start-axum), which is in the public
 domain (using [Unlicense](https://unlicense.org/)).
 
-Design, including the initial HTML, is licensed to RealWorld under MIT.
+Design, including the initial HTML templates, is licensed to RealWorld under
+MIT.
 
 All other content is licensed under MIT to me.
 
