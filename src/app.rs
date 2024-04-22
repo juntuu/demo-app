@@ -32,8 +32,10 @@ pub fn App() -> impl IntoView {
                 view! { <ErrorTemplate outside_errors/> }.into_view()
             }
         >
-            <main>
+            <header>
                 <Nav/>
+            </header>
+            <main>
                 <Routes>
                     <Route path="" view=HomePage>
                         <Route
@@ -99,8 +101,8 @@ pub fn App() -> impl IntoView {
                     <Route path="/editor" view=Editor/>
                     <Route path="/editor/:slug" view=Editor/>
                 </Routes>
-                <Footer/>
             </main>
+            <Footer/>
         </Router>
     }
 }
