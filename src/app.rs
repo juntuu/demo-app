@@ -37,7 +37,7 @@ pub fn App() -> impl IntoView {
                             path=""
                             view=|| {
                                 view! {
-                                    <Feed>
+                                    <Feed kind=FeedKind::Global>
                                         <NavLink href="/feed">Your Feed</NavLink>
                                         <NavLink href="" active=true>
                                             Global Feed
@@ -51,7 +51,7 @@ pub fn App() -> impl IntoView {
                             path="/feed"
                             view=|| {
                                 view! {
-                                    <Feed>
+                                    <Feed kind=FeedKind::Feed>
                                         <NavLink href="/feed" active=true>
                                             Your Feed
                                         </NavLink>
@@ -69,7 +69,7 @@ pub fn App() -> impl IntoView {
                                     params.with(|map| map.get("tag").cloned().unwrap_or_default())
                                 };
                                 view! {
-                                    <Feed>
+                                    <Feed kind=FeedKind::Tag(tag())>
                                         <NavLink href="/feed">Your Feed</NavLink>
                                         <NavLink href="/">Global Feed</NavLink>
                                         <NavLink href="" active=true>
@@ -334,8 +334,14 @@ fn Register() -> impl IntoView {
     }
 }
 
+#[derive(Params, PartialEq, Eq, Clone)]
+struct UserParam {
+    username: String
+}
+
 #[component]
 fn Profile(#[prop(optional)] favorites: bool) -> impl IntoView {
+    let params = use_params::<UserParam>();
     view! {
         <div class="profile-page">
             <div class="user-info">
@@ -364,14 +370,33 @@ fn Profile(#[prop(optional)] favorites: bool) -> impl IntoView {
 
             <div class="container">
                 <div class="row">
-                    <Feed> // class="col-xs-12 col-md-10 offset-md-1"
-                        <NavLink href=if favorites { ".." } else { "" } active=!favorites>
-                            My Articles
-                        </NavLink>
-                        <NavLink href=if favorites { "" } else { "favorites" } active=favorites>
-                            Favorited Articles
-                        </NavLink>
-                    </Feed>
+                    {move || {
+                        params()
+                            .map(|author| {
+                                view! {
+                                    // class="col-xs-12 col-md-10 offset-md-1"
+                                    <Feed kind=if favorites {
+                                        FeedKind::Favorited(author.username)
+                                    } else {
+                                        FeedKind::By(author.username)
+                                    }>
+                                        <NavLink
+                                            href=if favorites { ".." } else { "" }
+                                            active=!favorites
+                                        >
+                                            My Articles
+                                        </NavLink>
+                                        <NavLink
+                                            href=if favorites { "" } else { "favorites" }
+                                            active=favorites
+                                        >
+                                            Favorited Articles
+                                        </NavLink>
+                                    </Feed>
+                                }
+                            })
+                    }}
+
                 </div>
             </div>
         </div>
@@ -668,8 +693,16 @@ fn Article() -> impl IntoView {
     }
 }
 
+enum FeedKind {
+    Feed,
+    Global,
+    By(String),
+    Favorited(String),
+    Tag(String),
+}
+
 #[component]
-fn Feed(children: Children) -> impl IntoView {
+fn Feed(kind: FeedKind, children: Children) -> impl IntoView {
     // TODO: parameters for which feed to show
     view! {
         <div class="col-md-9">
