@@ -6,6 +6,9 @@ async fn main() {
     use demo_app::fileserv::file_and_error_handler;
     use leptos::{get_configuration, logging};
     use leptos_axum::{generate_route_list, LeptosRoutes};
+    use tower_http::{compression::CompressionLayer, trace::TraceLayer};
+
+    tracing_subscriber::fmt().init();
 
     // Setting get_configuration(None) means we'll be using cargo-leptos's env values
     // For deployment these variables are:
@@ -21,6 +24,8 @@ async fn main() {
     let app = Router::new()
         .leptos_routes(&leptos_options, routes, App)
         .fallback(file_and_error_handler)
+        .layer(CompressionLayer::new())
+        .layer(TraceLayer::new_for_http())
         .with_state(leptos_options);
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
