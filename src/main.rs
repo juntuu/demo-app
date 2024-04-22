@@ -2,9 +2,9 @@
 #[tokio::main]
 async fn main() {
     use axum::Router;
-    use demo_app::app::*;
+    use demo_app::app::App;
     use demo_app::fileserv::file_and_error_handler;
-    use leptos::*;
+    use leptos::{get_configuration, logging};
     use leptos_axum::{generate_route_list, LeptosRoutes};
 
     // Setting get_configuration(None) means we'll be using cargo-leptos's env values
