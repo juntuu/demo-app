@@ -539,22 +539,14 @@ fn Editor() -> impl IntoView {
 #[component]
 fn Article() -> impl IntoView {
     // TODO: update to switch between follow/favorite AND edit/delete
+    let [article, _] = placeholder_articles();
     view! {
         <div class="article-page">
             <div class="banner">
                 <div class="container">
                     <h1>How to build webapps that scale</h1>
 
-                    <div class="article-meta">
-                        <a href="/profile/eric-simons">
-                            <img src="http://i.imgur.com/Qr71crq.jpg"/>
-                        </a>
-                        <div class="info">
-                            <a href="/profile/eric-simons" class="author">
-                                Eric Simons
-                            </a>
-                            <span class="date">January 20th</span>
-                        </div>
+                    <ArticleMeta article=article.clone()>
                         <button class="btn btn-sm btn-outline-secondary">
                             <i class="ion-plus-round"></i>
                             {NBSP}
@@ -577,7 +569,7 @@ fn Article() -> impl IntoView {
                             <i class="ion-trash-a"></i>
                             Delete Article
                         </button>
-                    </div>
+                    </ArticleMeta>
                 </div>
             </div>
 
@@ -599,17 +591,7 @@ fn Article() -> impl IntoView {
                 <hr/>
 
                 <div class="article-actions">
-                    <div class="article-meta">
-                        <a href="profile.html">
-                            <img src="http://i.imgur.com/Qr71crq.jpg"/>
-                        </a>
-                        <div class="info">
-                            <a href="" class="author">
-                                Eric Simons
-                            </a>
-                            <span class="date">January 20th</span>
-                        </div>
-
+                    <ArticleMeta article=article.clone()>
                         <button class="btn btn-sm btn-outline-secondary">
                             <i class="ion-plus-round"></i>
                             {NBSP}
@@ -630,7 +612,7 @@ fn Article() -> impl IntoView {
                             <i class="ion-trash-a"></i>
                             Delete Article
                         </button>
-                    </div>
+                    </ArticleMeta>
                 </div>
 
                 <div class="row">
@@ -750,9 +732,26 @@ pub struct Articles {
     pub articles_count: u32,
 }
 
-#[server]
-async fn get_feed(kind: FeedKind) -> Result<Articles, ServerFnError> {
-    let placeholder_articles = vec![
+fn placeholder_authors() -> [Author; 2] {
+    [
+        Author {
+            username: "eric-simons".into(),
+            bio: None,
+            image: Some("http://i.imgur.com/Qr71crq.jpg".into()),
+            following: false,
+        },
+        Author {
+            username: "albert-pai".into(),
+            bio: None,
+            image: Some("http://i.imgur.com/N4VcUeJ.jpg".into()),
+            following: false,
+        },
+    ]
+}
+
+fn placeholder_articles() -> [Article; 2] {
+    let [first, second] = placeholder_authors();
+    [
         Article {
             slug: "how-to-build-webapps-that-scale".into(),
             title: "How to build webapps that scale".into(),
@@ -763,32 +762,29 @@ async fn get_feed(kind: FeedKind) -> Result<Articles, ServerFnError> {
             updated_at: None,
             favorited: false,
             favorites_count: 29,
-            author: Author {
-                username: "eric-simons".into(),
-                bio: None,
-                image: Some("http://i.imgur.com/Qr71crq.jpg".into()),
-                following: false,
-            },
+            author: first,
         },
         Article {
             slug: "the-song-you".into(),
             title: "The song you won't ever stop singing. No matter how hard you try.".into(),
             description: "This is the description for the post.".into(),
             body: "".into(),
-            tags: vec!["realworld".into(), "implementations".into(), "one-more".into()],
+            tags: vec![
+                "realworld".into(),
+                "implementations".into(),
+                "one-more".into(),
+            ],
             created_at: "January 20th".into(),
             updated_at: None,
             favorited: false,
             favorites_count: 32,
-            author: Author {
-                username: "albert-pai".into(),
-                bio: None,
-                image: Some("http://i.imgur.com/N4VcUeJ.jpg".into()),
-                following: false,
-            },
+            author: second,
         },
-    ];
+    ]
+}
 
+#[server]
+async fn get_feed(kind: FeedKind) -> Result<Articles, ServerFnError> {
     match kind {
         FeedKind::Feed => (),
         FeedKind::Global => (),
@@ -797,9 +793,10 @@ async fn get_feed(kind: FeedKind) -> Result<Articles, ServerFnError> {
         FeedKind::Tag(_) => (),
     }
 
-    let articles_count = placeholder_articles.len() as u32;
+    let articles = placeholder_articles().to_vec();
+    let articles_count = articles.len() as u32;
     Ok(Articles {
-        articles: placeholder_articles,
+        articles,
         articles_count,
     })
 }
@@ -809,28 +806,37 @@ fn format_date(date: &str) -> String {
 }
 
 #[component]
-fn ArticlePreview(article: Article) -> impl IntoView {
+fn ArticleMeta(article: Article, children: Children) -> impl IntoView {
     let author_link = &format!("/profile/{}", article.author.username);
+    view! {
+        <div class="article-meta">
+            <a href=author_link>{article.author.image.map(|url| view! { <img src=url/> })}</a>
+            <div class="info">
+                <a href=author_link class="author">
+                    {article.author.username}
+                </a>
+                <span class="date">{format_date(&article.created_at)}</span>
+                {article
+                    .updated_at
+                    .map(|updated| view! { <span class="date">{format_date(&updated)}</span> })}
+
+            </div>
+            {children()}
+        </div>
+    }
+}
+
+#[component]
+fn ArticlePreview(article: Article) -> impl IntoView {
     let article_link = &format!("/article/{}", article.slug);
     view! {
         <div class="article-preview">
-            <div class="article-meta">
-                <a href=author_link>{article.author.image.map(|url| view! { <img src=url/> })}</a>
-                <div class="info">
-                    <a href=author_link class="author">
-                        {article.author.username}
-                    </a>
-                    <span class="date">{format_date(&article.created_at)}</span>
-                    {article
-                        .updated_at
-                        .map(|updated| view! { <span class="date">{format_date(&updated)}</span> })}
-
-                </div>
+            <ArticleMeta article=article.clone()>
                 <button class="btn btn-outline-primary btn-sm pull-xs-right">
                     <i class="ion-heart"></i>
                     {article.favorites_count}
                 </button>
-            </div>
+            </ArticleMeta>
             <a href=article_link class="preview-link">
                 <h1>{article.title}</h1>
                 <p>{article.description}</p>
