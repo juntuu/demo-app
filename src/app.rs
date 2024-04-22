@@ -24,11 +24,14 @@ pub fn App() -> impl IntoView {
         <Stylesheet id="leptos" href="/pkg/demo-app.css"/>
 
         // content for this welcome page
-        <Router fallback=|| {
-            let mut outside_errors = Errors::default();
-            outside_errors.insert_with_default_key(AppError::NotFound);
-            view! { <ErrorTemplate outside_errors/> }.into_view()
-        }>
+        <Router
+            trailing_slash=TrailingSlash::Redirect
+            fallback=|| {
+                let mut outside_errors = Errors::default();
+                outside_errors.insert_with_default_key(AppError::NotFound);
+                view! { <ErrorTemplate outside_errors/> }.into_view()
+            }
+        >
             <main>
                 <Nav/>
                 <Routes>
@@ -91,7 +94,10 @@ pub fn App() -> impl IntoView {
                         view=|| view! { <Profile favorites=true/> }
                     />
                     <Route path="/article/:slug" view=Article/>
-                    <Route path="/editor/:slug?" view=Editor/>
+                    // TODO: this fails with TrailingSlash::Redirect
+                    // <Route path="/editor/:slug?" view=Editor/>
+                    <Route path="/editor" view=Editor/>
+                    <Route path="/editor/:slug" view=Editor/>
                 </Routes>
                 <Footer/>
             </main>
