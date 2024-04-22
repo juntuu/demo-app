@@ -33,6 +33,13 @@ pub fn App() -> impl IntoView {
                 <Nav/>
                 <Routes>
                     <Route path="" view=HomePage/>
+                    <Route path="/login" view=Login/>
+                    <Route path="/register" view=Register/>
+                    <Route path="/settings" view=Settings/>
+                    <Route path="/profile/:username" view=|| view! { <Profile/> }/>
+                    <Route path="/profile/:username/favorites" view=|| view! { <Profile favorites=true/> }/>
+                    <Route path="/article/:slug" view=Article/>
+                    <Route path="/editor/:slug?" view=Editor/>
                 </Routes>
                 <Footer/>
             </main>
@@ -362,7 +369,7 @@ fn Register() -> impl IntoView {
 }
 
 #[component]
-fn Profile() -> impl IntoView {
+fn Profile(#[prop(default = false)] favorites: bool) -> impl IntoView {
     view! {
         <div class="profile-page">
             <div class="user-info">
