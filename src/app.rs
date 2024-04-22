@@ -4,6 +4,7 @@ use crate::error_template::{AppError, ErrorTemplate};
 use leptos::*;
 use leptos_meta::{provide_meta_context, Stylesheet, Title};
 use leptos_router::*;
+use serde::{Deserialize, Serialize};
 
 #[component]
 pub fn App() -> impl IntoView {
@@ -32,6 +33,7 @@ pub fn App() -> impl IntoView {
                 view! { <ErrorTemplate outside_errors/> }.into_view()
             }
         >
+
             <header>
                 <Nav/>
             </header>
@@ -344,7 +346,7 @@ fn Register() -> impl IntoView {
 
 #[derive(Params, PartialEq, Eq, Clone)]
 struct UserParam {
-    username: String
+    username: String,
 }
 
 #[component]
@@ -701,6 +703,7 @@ fn Article() -> impl IntoView {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 enum FeedKind {
     Feed,
     Global,
@@ -709,68 +712,185 @@ enum FeedKind {
     Tag(String),
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Author {
+    pub username: String,
+    pub bio: Option<String>,
+    pub image: Option<String>,
+    #[serde(default)]
+    pub following: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Article {
+    pub slug: String,
+    pub title: String,
+    pub description: String,
+    pub body: String,
+    #[serde(rename = "tagList")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    // TODO: consider using proper date type
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "updatedAt")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+    #[serde(default)]
+    pub favorited: bool,
+    #[serde(rename = "favoritesCount")]
+    pub favorites_count: u32,
+    pub author: Author,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Articles {
+    pub articles: Vec<Article>,
+    /// The full number of articles in the requested feed
+    pub articles_count: u32,
+}
+
+#[server]
+async fn get_feed(kind: FeedKind) -> Result<Articles, ServerFnError> {
+    let placeholder_articles = vec![
+        Article {
+            slug: "how-to-build-webapps-that-scale".into(),
+            title: "How to build webapps that scale".into(),
+            description: "This is the description for the post.".into(),
+            body: "".into(),
+            tags: vec!["realworld".into(), "implementations".into()],
+            created_at: "January 20th".into(),
+            updated_at: None,
+            favorited: false,
+            favorites_count: 29,
+            author: Author {
+                username: "eric-simons".into(),
+                bio: None,
+                image: Some("http://i.imgur.com/Qr71crq.jpg".into()),
+                following: false,
+            },
+        },
+        Article {
+            slug: "the-song-you".into(),
+            title: "The song you won't ever stop singing. No matter how hard you try.".into(),
+            description: "This is the description for the post.".into(),
+            body: "".into(),
+            tags: vec!["realworld".into(), "implementations".into(), "one-more".into()],
+            created_at: "January 20th".into(),
+            updated_at: None,
+            favorited: false,
+            favorites_count: 32,
+            author: Author {
+                username: "albert-pai".into(),
+                bio: None,
+                image: Some("http://i.imgur.com/N4VcUeJ.jpg".into()),
+                following: false,
+            },
+        },
+    ];
+
+    match kind {
+        FeedKind::Feed => (),
+        FeedKind::Global => (),
+        FeedKind::By(_) => (),
+        FeedKind::Favorited(_) => (),
+        FeedKind::Tag(_) => (),
+    }
+
+    let articles_count = placeholder_articles.len() as u32;
+    Ok(Articles {
+        articles: placeholder_articles,
+        articles_count,
+    })
+}
+
+fn format_date(date: &str) -> String {
+    date.to_string()
+}
+
+#[component]
+fn ArticlePreview(article: Article) -> impl IntoView {
+    let author_link = &format!("/profile/{}", article.author.username);
+    let article_link = &format!("/article/{}", article.slug);
+    view! {
+        <div class="article-preview">
+            <div class="article-meta">
+                <a href=author_link>{article.author.image.map(|url| view! { <img src=url/> })}</a>
+                <div class="info">
+                    <a href=author_link class="author">
+                        {article.author.username}
+                    </a>
+                    <span class="date">{format_date(&article.created_at)}</span>
+                    {article
+                        .updated_at
+                        .map(|updated| view! { <span class="date">{format_date(&updated)}</span> })}
+
+                </div>
+                <button class="btn btn-outline-primary btn-sm pull-xs-right">
+                    <i class="ion-heart"></i>
+                    {article.favorites_count}
+                </button>
+            </div>
+            <a href=article_link class="preview-link">
+                <h1>{article.title}</h1>
+                <p>{article.description}</p>
+                <span>Read more...</span>
+                <ul class="tag-list">
+                    {article
+                        .tags
+                        .iter()
+                        .map(|tag| {
+                            view! { <li class="tag-default tag-pill tag-outline">{tag}</li> }
+                        })
+                        .collect_view()}
+
+                </ul>
+            </a>
+        </div>
+    }
+}
+
 #[component]
 fn Feed(kind: FeedKind, children: Children) -> impl IntoView {
-    // TODO: parameters for which feed to show
+    let feed = create_resource(move || kind.clone(), get_feed);
     view! {
         <div class="col-md-9">
             <div class="feed-toggle">
                 <ul class="nav nav-pills outline-active">{children()}</ul>
             </div>
 
-            <div class="article-preview">
-                <div class="article-meta">
-                    <a href="/profile/eric-simons">
-                        <img src="http://i.imgur.com/Qr71crq.jpg"/>
-                    </a>
-                    <div class="info">
-                        <a href="/profile/eric-simons" class="author">
-                            Eric Simons
-                        </a>
-                        <span class="date">January 20th</span>
-                    </div>
-                    <button class="btn btn-outline-primary btn-sm pull-xs-right">
-                        <i class="ion-heart"></i>
-                        29
-                    </button>
-                </div>
-                <a href="/article/how-to-build-webapps-that-scale" class="preview-link">
-                    <h1>How to build webapps that scale</h1>
-                    <p>This is the description for the post.</p>
-                    <span>Read more...</span>
-                    <ul class="tag-list">
-                        <li class="tag-default tag-pill tag-outline">realworld</li>
-                        <li class="tag-default tag-pill tag-outline">implementations</li>
-                    </ul>
-                </a>
-            </div>
+            // TODO: Add error boundary
+            // Maybe try `Transition`
+            <Suspense fallback=move || {
+                view! { <p>"Loading feed..."</p> }
+            }>
+                {move || {
+                    feed()
+                        .map(move |data| {
+                            view! {
+                                <ErrorBoundary fallback=|errors| {
+                                    view! { <ErrorTemplate errors=errors/> }
+                                }>
 
-            <div class="article-preview">
-                <div class="article-meta">
-                    <a href="/profile/albert-pai">
-                        <img src="http://i.imgur.com/N4VcUeJ.jpg"/>
-                    </a>
-                    <div class="info">
-                        <a href="/profile/albert-pai" class="author">
-                            Albert Pai
-                        </a>
-                        <span class="date">January 20th</span>
-                    </div>
-                    <button class="btn btn-outline-primary btn-sm pull-xs-right">
-                        <i class="ion-heart"></i>
-                        32
-                    </button>
-                </div>
-                <a href="/article/the-song-you" class="preview-link">
-                    <h1>"The song you won't ever stop singing. No matter how hard you try."</h1>
-                    <p>This is the description for the post.</p>
-                    <span>Read more...</span>
-                    <ul class="tag-list">
-                        <li class="tag-default tag-pill tag-outline">realworld</li>
-                        <li class="tag-default tag-pill tag-outline">implementations</li>
-                    </ul>
-                </a>
-            </div>
+                                    {data
+                                        .map(|articles| {
+                                            view! {
+                                                <For
+                                                    each=move || articles.articles.clone()
+                                                    key=|article| article.slug.clone()
+                                                    let:article
+                                                >
+                                                    <ArticlePreview article=article/>
+                                                </For>
+                                            }
+                                        })}
+
+                                </ErrorBoundary>
+                            }
+                        })
+                }}
+
+            </Suspense>
 
             <ul class="pagination">
                 <li class="page-item active">
