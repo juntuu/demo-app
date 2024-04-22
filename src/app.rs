@@ -3,7 +3,7 @@
 use crate::error_template::{AppError, ErrorTemplate};
 use leptos::*;
 use leptos_meta::{provide_meta_context, Stylesheet, Title};
-use leptos_router::{Route, Router, Routes};
+use leptos_router::*;
 
 #[component]
 pub fn App() -> impl IntoView {
@@ -32,18 +32,90 @@ pub fn App() -> impl IntoView {
             <main>
                 <Nav/>
                 <Routes>
-                    <Route path="" view=HomePage/>
+                    <Route path="" view=HomePage>
+                        <Route
+                            path=""
+                            view=|| {
+                                view! {
+                                    <Feed>
+                                        <NavLink href="/feed">Your Feed</NavLink>
+                                        <NavLink href="" active=true>
+                                            Global Feed
+                                        </NavLink>
+                                    </Feed>
+                                }
+                            }
+                        />
+
+                        <Route
+                            path="/feed"
+                            view=|| {
+                                view! {
+                                    <Feed>
+                                        <NavLink href="/feed" active=true>
+                                            Your Feed
+                                        </NavLink>
+                                        <NavLink href="/">Global Feed</NavLink>
+                                    </Feed>
+                                }
+                            }
+                        />
+
+                        <Route
+                            path="/tag/:tag"
+                            view=|| {
+                                let params = use_params_map();
+                                let tag = move || {
+                                    params.with(|map| map.get("tag").cloned().unwrap_or_default())
+                                };
+                                view! {
+                                    <Feed>
+                                        <NavLink href="/feed">Your Feed</NavLink>
+                                        <NavLink href="/">Global Feed</NavLink>
+                                        <NavLink href="" active=true>
+                                            #
+                                            {tag}
+                                        </NavLink>
+                                    </Feed>
+                                }
+                            }
+                        />
+
+                    </Route>
                     <Route path="/login" view=Login/>
                     <Route path="/register" view=Register/>
                     <Route path="/settings" view=Settings/>
                     <Route path="/profile/:username" view=|| view! { <Profile/> }/>
-                    <Route path="/profile/:username/favorites" view=|| view! { <Profile favorites=true/> }/>
+                    <Route
+                        path="/profile/:username/favorites"
+                        view=|| view! { <Profile favorites=true/> }
+                    />
                     <Route path="/article/:slug" view=Article/>
                     <Route path="/editor/:slug?" view=Editor/>
                 </Routes>
                 <Footer/>
             </main>
         </Router>
+    }
+}
+
+#[component]
+fn NavLink(
+    href: &'static str,
+    #[prop(optional)] active: bool,
+    children: Children,
+) -> impl IntoView {
+    let link_class = if active {
+        "nav-link active"
+    } else {
+        "nav-link"
+    };
+    view! {
+        <li class="nav-item">
+            <A class=link_class href=href>
+                {children()}
+            </A>
+        </li>
     }
 }
 
@@ -60,32 +132,24 @@ fn Nav() -> impl IntoView {
                         conduit
                     </a>
                     <ul class="nav navbar-nav pull-xs-right">
-                        <li class="nav-item">
-                            // Add "active" class when you're on that page
-                            <a class="nav-link active" href="/">
-                                Home
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/editor">
-                                <i class="ion-compose"></i>
-                                {NBSP}
-                                New Article
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/settings">
-                                <i class="ion-gear-a"></i>
-                                {NBSP}
-                                Settings
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/profile/eric-simons">
-                                <img src="" class="user-pic"/>
-                                Eric Simons
-                            </a>
-                        </li>
+                        // Add "active" class when you're on that page
+                        <NavLink href="/" active=true>
+                            Home
+                        </NavLink>
+                        <NavLink href="/editor">
+                            <i class="ion-compose"></i>
+                            {NBSP}
+                            New Article
+                        </NavLink>
+                        <NavLink href="/settings">
+                            <i class="ion-gear-a"></i>
+                            {NBSP}
+                            Settings
+                        </NavLink>
+                        <NavLink href="/profile/eric-simons">
+                            <img src="" class="user-pic"/>
+                            Eric Simons
+                        </NavLink>
                     </ul>
                 </div>
             </nav>
@@ -98,22 +162,12 @@ fn Nav() -> impl IntoView {
                         conduit
                     </a>
                     <ul class="nav navbar-nav pull-xs-right">
-                        <li class="nav-item">
-                            // Add "active" class when you're on that page
-                            <a class="nav-link active" href="/">
-                                Home
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/login">
-                                Sign in
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/register">
-                                Sign up
-                            </a>
-                        </li>
+                        // Add "active" class when you're on that page
+                        <NavLink href="/" active=true>
+                            Home
+                        </NavLink>
+                        <NavLink href="/login">Sign in</NavLink>
+                        <NavLink href="/register">Sign up</NavLink>
                     </ul>
                 </div>
             </nav>
@@ -153,95 +207,7 @@ fn HomePage() -> impl IntoView {
 
             <div class="container page">
                 <div class="row">
-                    <div class="col-md-9">
-                        <div class="feed-toggle">
-                            <ul class="nav nav-pills outline-active">
-                                <li class="nav-item">
-                                    <a class="nav-link" href="">
-                                        Your Feed
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link active" href="">
-                                        Global Feed
-                                    </a>
-                                </li>
-                            </ul>
-                        </div>
-
-                        <div class="article-preview">
-                            <div class="article-meta">
-                                <a href="/profile/eric-simons">
-                                    <img src="http://i.imgur.com/Qr71crq.jpg"/>
-                                </a>
-                                <div class="info">
-                                    <a href="/profile/eric-simons" class="author">
-                                        Eric Simons
-                                    </a>
-                                    <span class="date">January 20th</span>
-                                </div>
-                                <button class="btn btn-outline-primary btn-sm pull-xs-right">
-                                    <i class="ion-heart"></i>
-                                    29
-                                </button>
-                            </div>
-                            <a href="/article/how-to-build-webapps-that-scale" class="preview-link">
-                                <h1>How to build webapps that scale</h1>
-                                <p>This is the description for the post.</p>
-                                <span>Read more...</span>
-                                <ul class="tag-list">
-                                    <li class="tag-default tag-pill tag-outline">realworld</li>
-                                    <li class="tag-default tag-pill tag-outline">
-                                        implementations
-                                    </li>
-                                </ul>
-                            </a>
-                        </div>
-
-                        <div class="article-preview">
-                            <div class="article-meta">
-                                <a href="/profile/albert-pai">
-                                    <img src="http://i.imgur.com/N4VcUeJ.jpg"/>
-                                </a>
-                                <div class="info">
-                                    <a href="/profile/albert-pai" class="author">
-                                        Albert Pai
-                                    </a>
-                                    <span class="date">January 20th</span>
-                                </div>
-                                <button class="btn btn-outline-primary btn-sm pull-xs-right">
-                                    <i class="ion-heart"></i>
-                                    32
-                                </button>
-                            </div>
-                            <a href="/article/the-song-you" class="preview-link">
-                                <h1>
-                                    "The song you won't ever stop singing. No matter how hard you try."
-                                </h1>
-                                <p>This is the description for the post.</p>
-                                <span>Read more...</span>
-                                <ul class="tag-list">
-                                    <li class="tag-default tag-pill tag-outline">realworld</li>
-                                    <li class="tag-default tag-pill tag-outline">
-                                        implementations
-                                    </li>
-                                </ul>
-                            </a>
-                        </div>
-
-                        <ul class="pagination">
-                            <li class="page-item active">
-                                <a class="page-link" href="">
-                                    1
-                                </a>
-                            </li>
-                            <li class="page-item">
-                                <a class="page-link" href="">
-                                    2
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
+                    <Outlet/>
 
                     <div class="col-md-3">
                         <div class="sidebar">
@@ -369,7 +335,7 @@ fn Register() -> impl IntoView {
 }
 
 #[component]
-fn Profile(#[prop(default = false)] favorites: bool) -> impl IntoView {
+fn Profile(#[prop(optional)] favorites: bool) -> impl IntoView {
     view! {
         <div class="profile-page">
             <div class="user-info">
@@ -398,93 +364,14 @@ fn Profile(#[prop(default = false)] favorites: bool) -> impl IntoView {
 
             <div class="container">
                 <div class="row">
-                    <div class="col-xs-12 col-md-10 offset-md-1">
-                        <div class="articles-toggle">
-                            <ul class="nav nav-pills outline-active">
-                                <li class="nav-item">
-                                    <a class="nav-link active" href="">
-                                        My Articles
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" href="">
-                                        Favorited Articles
-                                    </a>
-                                </li>
-                            </ul>
-                        </div>
-
-                        <div class="article-preview">
-                            <div class="article-meta">
-                                <a href="/profile/eric-simons">
-                                    <img src="http://i.imgur.com/Qr71crq.jpg"/>
-                                </a>
-                                <div class="info">
-                                    <a href="/profile/eric-simons" class="author">
-                                        Eric Simons
-                                    </a>
-                                    <span class="date">January 20th</span>
-                                </div>
-                                <button class="btn btn-outline-primary btn-sm pull-xs-right">
-                                    <i class="ion-heart"></i>
-                                    29
-                                </button>
-                            </div>
-                            <a href="/article/how-to-buil-webapps-that-scale" class="preview-link">
-                                <h1>How to build webapps that scale</h1>
-                                <p>This is the description for the post.</p>
-                                <span>Read more...</span>
-                                <ul class="tag-list">
-                                    <li class="tag-default tag-pill tag-outline">realworld</li>
-                                    <li class="tag-default tag-pill tag-outline">
-                                        implementations
-                                    </li>
-                                </ul>
-                            </a>
-                        </div>
-
-                        <div class="article-preview">
-                            <div class="article-meta">
-                                <a href="/profile/albert-pai">
-                                    <img src="http://i.imgur.com/N4VcUeJ.jpg"/>
-                                </a>
-                                <div class="info">
-                                    <a href="/profile/albert-pai" class="author">
-                                        Albert Pai
-                                    </a>
-                                    <span class="date">January 20th</span>
-                                </div>
-                                <button class="btn btn-outline-primary btn-sm pull-xs-right">
-                                    <i class="ion-heart"></i>
-                                    32
-                                </button>
-                            </div>
-                            <a href="/article/the-song-you" class="preview-link">
-                                <h1>
-                                    "The song you won't ever stop singing. No matter how hard you try."
-                                </h1>
-                                <p>This is the description for the post.</p>
-                                <span>Read more...</span>
-                                <ul class="tag-list">
-                                    <li class="tag-default tag-pill tag-outline">Music</li>
-                                    <li class="tag-default tag-pill tag-outline">Song</li>
-                                </ul>
-                            </a>
-                        </div>
-
-                        <ul class="pagination">
-                            <li class="page-item active">
-                                <a class="page-link" href="">
-                                    1
-                                </a>
-                            </li>
-                            <li class="page-item">
-                                <a class="page-link" href="">
-                                    2
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
+                    <Feed> // class="col-xs-12 col-md-10 offset-md-1"
+                        <NavLink href=if favorites { ".." } else { "" } active=!favorites>
+                            My Articles
+                        </NavLink>
+                        <NavLink href=if favorites { "" } else { "favorites" } active=favorites>
+                            Favorited Articles
+                        </NavLink>
+                    </Feed>
                 </div>
             </div>
         </div>
@@ -777,6 +664,85 @@ fn Article() -> impl IntoView {
                     </div>
                 </div>
             </div>
+        </div>
+    }
+}
+
+#[component]
+fn Feed(children: Children) -> impl IntoView {
+    // TODO: parameters for which feed to show
+    view! {
+        <div class="col-md-9">
+            <div class="feed-toggle">
+                <ul class="nav nav-pills outline-active">{children()}</ul>
+            </div>
+
+            <div class="article-preview">
+                <div class="article-meta">
+                    <a href="/profile/eric-simons">
+                        <img src="http://i.imgur.com/Qr71crq.jpg"/>
+                    </a>
+                    <div class="info">
+                        <a href="/profile/eric-simons" class="author">
+                            Eric Simons
+                        </a>
+                        <span class="date">January 20th</span>
+                    </div>
+                    <button class="btn btn-outline-primary btn-sm pull-xs-right">
+                        <i class="ion-heart"></i>
+                        29
+                    </button>
+                </div>
+                <a href="/article/how-to-build-webapps-that-scale" class="preview-link">
+                    <h1>How to build webapps that scale</h1>
+                    <p>This is the description for the post.</p>
+                    <span>Read more...</span>
+                    <ul class="tag-list">
+                        <li class="tag-default tag-pill tag-outline">realworld</li>
+                        <li class="tag-default tag-pill tag-outline">implementations</li>
+                    </ul>
+                </a>
+            </div>
+
+            <div class="article-preview">
+                <div class="article-meta">
+                    <a href="/profile/albert-pai">
+                        <img src="http://i.imgur.com/N4VcUeJ.jpg"/>
+                    </a>
+                    <div class="info">
+                        <a href="/profile/albert-pai" class="author">
+                            Albert Pai
+                        </a>
+                        <span class="date">January 20th</span>
+                    </div>
+                    <button class="btn btn-outline-primary btn-sm pull-xs-right">
+                        <i class="ion-heart"></i>
+                        32
+                    </button>
+                </div>
+                <a href="/article/the-song-you" class="preview-link">
+                    <h1>"The song you won't ever stop singing. No matter how hard you try."</h1>
+                    <p>This is the description for the post.</p>
+                    <span>Read more...</span>
+                    <ul class="tag-list">
+                        <li class="tag-default tag-pill tag-outline">realworld</li>
+                        <li class="tag-default tag-pill tag-outline">implementations</li>
+                    </ul>
+                </a>
+            </div>
+
+            <ul class="pagination">
+                <li class="page-item active">
+                    <a class="page-link" href="">
+                        1
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="">
+                        2
+                    </a>
+                </li>
+            </ul>
         </div>
     }
 }
