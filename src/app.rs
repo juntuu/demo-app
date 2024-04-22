@@ -807,14 +807,15 @@ fn format_date(date: &str) -> String {
 
 #[component]
 fn ArticleMeta(article: Article, children: Children) -> impl IntoView {
-    let author_link = &format!("/profile/{}", article.author.username);
+    let author_link = format!("/profile/{}", article.author.username);
     view! {
         <div class="article-meta">
-            <a href=author_link>{article.author.image.map(|url| view! { <img src=url/> })}</a>
+            <A href=author_link
+                .clone()>{article.author.image.map(|url| view! { <img src=url/> })}</A>
             <div class="info">
-                <a href=author_link class="author">
+                <A href=author_link class="author">
                     {article.author.username}
-                </a>
+                </A>
                 <span class="date">{format_date(&article.created_at)}</span>
                 {article
                     .updated_at
@@ -828,7 +829,7 @@ fn ArticleMeta(article: Article, children: Children) -> impl IntoView {
 
 #[component]
 fn ArticlePreview(article: Article) -> impl IntoView {
-    let article_link = &format!("/article/{}", article.slug);
+    let article_link = format!("/article/{}", article.slug);
     view! {
         <div class="article-preview">
             <ArticleMeta article=article.clone()>
@@ -837,7 +838,7 @@ fn ArticlePreview(article: Article) -> impl IntoView {
                     {article.favorites_count}
                 </button>
             </ArticleMeta>
-            <a href=article_link class="preview-link">
+            <A href=article_link class="preview-link">
                 <h1>{article.title}</h1>
                 <p>{article.description}</p>
                 <span>Read more...</span>
@@ -851,7 +852,7 @@ fn ArticlePreview(article: Article) -> impl IntoView {
                         .collect_view()}
 
                 </ul>
-            </a>
+            </A>
         </div>
     }
 }
