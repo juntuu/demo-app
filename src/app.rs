@@ -4,6 +4,7 @@ use crate::{
     error_template::{AppError, ErrorTemplate},
     models::{
         article::{Article, Feed},
+        comment::Comment,
         user::Profile,
     },
 };
@@ -543,6 +544,37 @@ fn Editor() -> impl IntoView {
 }
 
 #[component]
+fn ArticleActions(article: Article) -> impl IntoView {
+    // TODO: only show appropriate actions if logged in or the author
+    // TODO: use reactive parameters
+    view! {
+        <ArticleMeta article=article.clone()>
+            <button class="btn btn-sm btn-outline-secondary">
+                <i class="ion-plus-round"></i>
+                {NBSP}
+                Follow
+                {&article.author.username}
+            </button>
+            {NBSP}
+            <button class="btn btn-sm btn-outline-primary">
+                <i class="ion-heart"></i>
+                {NBSP}
+                Favorite Article
+                <span class="counter">"(" {article.favorites_count} ")"</span>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary">
+                <i class="ion-edit"></i>
+                Edit Article
+            </button>
+            <button class="btn btn-sm btn-outline-danger">
+                <i class="ion-trash-a"></i>
+                Delete Article
+            </button>
+        </ArticleMeta>
+    }
+}
+
+#[component]
 fn Article() -> impl IntoView {
     // TODO: update to switch between follow/favorite AND edit/delete
     let [article, _] = placeholder_articles();
@@ -550,32 +582,9 @@ fn Article() -> impl IntoView {
         <div class="article-page">
             <div class="banner">
                 <div class="container">
-                    <h1>How to build webapps that scale</h1>
+                    <h1>{&article.title}</h1>
 
-                    <ArticleMeta article=article.clone()>
-                        <button class="btn btn-sm btn-outline-secondary">
-                            <i class="ion-plus-round"></i>
-                            {NBSP}
-                            Follow Eric Simons
-                            <span class="counter">(10)</span>
-                        </button>
-                        {NBSP}
-                        {NBSP}
-                        <button class="btn btn-sm btn-outline-primary">
-                            <i class="ion-heart"></i>
-                            {NBSP}
-                            Favorite Post
-                            <span class="counter">(29)</span>
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary">
-                            <i class="ion-edit"></i>
-                            Edit Article
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger">
-                            <i class="ion-trash-a"></i>
-                            Delete Article
-                        </button>
-                    </ArticleMeta>
+                    <ArticleActions article=article.clone()/>
                 </div>
             </div>
 
@@ -583,18 +592,18 @@ fn Article() -> impl IntoView {
                 <div class="row article-content">
                     <div class="col-md-12">
                         // TODO: This is a bit of a hack, but let's roll with it for now
-                        <div id="content">
+                        <div id="content" style="all: initial">
                             <pre>{&article.body}</pre>
-                            <div style="all: initial"></div>
+                            <div></div>
                         </div>
                         <script type="module">
-                        "
-                            import { marked } from 'https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js';
-                            import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.1.0/+esm'
-                            const [pre, target] = document.getElementById('content').children;
-                            pre.style.display = 'none';
-                            target.innerHTML = DOMPurify.sanitize(marked.parse(pre.textContent));
-                        "
+                            "
+                                import { marked } from 'https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js';
+                                import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.1.0/+esm'
+                                const [pre, target] = document.getElementById('content').children;
+                                pre.style.display = 'none';
+                                target.innerHTML = DOMPurify.sanitize(marked.parse(pre.textContent));
+                            "
                         </script>
                         <ul class="tag-list">
                             <li class="tag-default tag-pill tag-outline">realworld</li>
@@ -606,96 +615,103 @@ fn Article() -> impl IntoView {
                 <hr/>
 
                 <div class="article-actions">
-                    <ArticleMeta article=article.clone()>
-                        <button class="btn btn-sm btn-outline-secondary">
-                            <i class="ion-plus-round"></i>
-                            {NBSP}
-                            Follow Eric Simons
-                        </button>
-                        {NBSP}
-                        <button class="btn btn-sm btn-outline-primary">
-                            <i class="ion-heart"></i>
-                            {NBSP}
-                            Favorite Article
-                            <span class="counter">(29)</span>
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary">
-                            <i class="ion-edit"></i>
-                            Edit Article
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger">
-                            <i class="ion-trash-a"></i>
-                            Delete Article
-                        </button>
-                    </ArticleMeta>
+                    <ArticleActions article=article.clone()/>
                 </div>
 
                 <div class="row">
-                    <div class="col-xs-12 col-md-8 offset-md-2">
-                        <form class="card comment-form">
-                            <div class="card-block">
-                                <textarea
-                                    class="form-control"
-                                    placeholder="Write a comment..."
-                                    rows="3"
-                                ></textarea>
-                            </div>
-                            <div class="card-footer">
-                                <img
-                                    src="http://i.imgur.com/Qr71crq.jpg"
-                                    class="comment-author-img"
-                                />
-                                <button class="btn btn-sm btn-primary">Post Comment</button>
-                            </div>
-                        </form>
-
-                        <div class="card">
-                            <div class="card-block">
-                                <p class="card-text">
-                                    With supporting text below as a natural lead-in to additional content.
-                                </p>
-                            </div>
-                            <div class="card-footer">
-                                <a href="/profile/author" class="comment-author">
-                                    <img
-                                        src="http://i.imgur.com/Qr71crq.jpg"
-                                        class="comment-author-img"
-                                    />
-                                </a>
-                                {NBSP}
-                                <a href="/profile/jacob-schmidt" class="comment-author">
-                                    Jacob Schmidt
-                                </a>
-                                <span class="date-posted">Dec 29th</span>
-                            </div>
-                        </div>
-
-                        <div class="card">
-                            <div class="card-block">
-                                <p class="card-text">
-                                    With supporting text below as a natural lead-in to additional content.
-                                </p>
-                            </div>
-                            <div class="card-footer">
-                                <a href="/profile/author" class="comment-author">
-                                    <img
-                                        src="http://i.imgur.com/Qr71crq.jpg"
-                                        class="comment-author-img"
-                                    />
-                                </a>
-                                {NBSP}
-                                <a href="/profile/jacob-schmidt" class="comment-author">
-                                    Jacob Schmidt
-                                </a>
-                                <span class="date-posted">Dec 29th</span>
-                                <span class="mod-options">
-                                    <i class="ion-trash-a"></i>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
+                    <Comments article_slug=article.slug.clone()/>
                 </div>
             </div>
+        </div>
+    }
+}
+
+#[server]
+async fn comments(slug: String) -> Result<Vec<Comment>, ServerFnError> {
+    Comment::for_article(&slug).await.map_err(|e| {
+        tracing::error!("failed to fetch comments: {:?}", e);
+        ServerFnError::ServerError("Failed to fetch comments".into())
+    })
+}
+
+#[component]
+fn CommentCard(comment: Comment) -> impl IntoView {
+    let link = profile_link(&comment.author);
+    view! {
+        <div class="card">
+            <div class="card-block">
+                <p class="card-text">{&comment.body}</p>
+            </div>
+            <div class="card-footer">
+                <A href=link.clone() class="comment-author">
+                    {comment
+                        .author
+                        .image
+                        .map(|url| {
+                            view! { <img src=url class="comment-author-img"/> }
+                        })}
+
+                </A>
+                {NBSP}
+                <A href=link class="comment-author">
+                    {&comment.author.username}
+                </A>
+                <span class="date-posted">{&comment.created_at}</span>
+            </div>
+        </div>
+    }
+}
+
+#[component]
+fn Comments(#[prop(into)] article_slug: MaybeSignal<String>) -> impl IntoView {
+    let comments = create_resource(article_slug, comments);
+    view! {
+        <div class="col-xs-12 col-md-8 offset-md-2">
+            <form class="card comment-form">
+                <div class="card-block">
+                    <textarea
+                        class="form-control"
+                        placeholder="Write a comment..."
+                        rows="3"
+                    ></textarea>
+                </div>
+                <div class="card-footer">
+                    <img src="http://i.imgur.com/Qr71crq.jpg" class="comment-author-img"/>
+                    <button class="btn btn-sm btn-primary">Post Comment</button>
+                </div>
+            </form>
+
+            // TODO: Maybe try `Transition`
+            <Suspense fallback=move || {
+                view! { <p>"Loading comments..."</p> }
+            }>
+                {move || {
+                    comments()
+                        .map(move |data| {
+                            view! {
+                                <ErrorBoundary fallback=|errors| {
+                                    view! { <ErrorTemplate errors=errors/> }
+                                }>
+
+                                    {data
+                                        .map(|comments| {
+                                            view! {
+                                                <For
+                                                    each=move || comments.clone()
+                                                    key=|comment| comment.id
+                                                    let:comment
+                                                >
+                                                    <CommentCard comment=comment/>
+                                                </For>
+                                            }
+                                        })}
+
+                                </ErrorBoundary>
+                            }
+                        })
+                }}
+
+            </Suspense>
         </div>
     }
 }
@@ -742,7 +758,8 @@ this is some content
 - list 2
 - list 3
 
-".into(),
+"
+            .into(),
             tags: vec!["realworld".into(), "implementations".into()],
             created_at: "January 20th".into(),
             updated_at: None,
@@ -788,13 +805,17 @@ async fn get_feed(kind: FeedKind) -> Result<Feed, ServerFnError> {
     })
 }
 
+fn profile_link(user: &Profile) -> String {
+    format!("/profile/{}", user.username)
+}
+
 fn format_date(date: &str) -> String {
     date.to_string()
 }
 
 #[component]
 fn ArticleMeta(article: Article, children: Children) -> impl IntoView {
-    let author_link = format!("/profile/{}", article.author.username);
+    let author_link = profile_link(&article.author);
     view! {
         <div class="article-meta">
             <A href=author_link
@@ -853,8 +874,7 @@ fn Feed(kind: FeedKind, children: Children) -> impl IntoView {
                 <ul class="nav nav-pills outline-active">{children()}</ul>
             </div>
 
-            // TODO: Add error boundary
-            // Maybe try `Transition`
+            // TODO: Maybe try `Transition`
             <Suspense fallback=move || {
                 view! { <p>"Loading feed..."</p> }
             }>

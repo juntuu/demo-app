@@ -4,10 +4,10 @@ use super::user::Profile;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Comment {
-    id: i64,
-    body: String,
-    created_at: String,
-    author: Profile,
+    pub id: i64,
+    pub body: String,
+    pub created_at: String,
+    pub author: Profile,
 }
 
 #[cfg(feature = "ssr")]
