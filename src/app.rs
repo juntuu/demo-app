@@ -582,12 +582,20 @@ fn Article() -> impl IntoView {
             <div class="container page">
                 <div class="row article-content">
                     <div class="col-md-12">
-                        <pre>
-                            {&article.body}
-                        </pre>
-                        <noscript>
-                        // TODO: render markdown
-                        </noscript>
+                        // TODO: This is a bit of a hack, but let's roll with it for now
+                        <div id="content">
+                            <pre>{&article.body}</pre>
+                            <div style="all: initial"></div>
+                        </div>
+                        <script type="module">
+                        "
+                            import { marked } from 'https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js';
+                            import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.1.0/+esm'
+                            const [pre, target] = document.getElementById('content').children;
+                            pre.style.display = 'none';
+                            target.innerHTML = DOMPurify.sanitize(marked.parse(pre.textContent));
+                        "
+                        </script>
                         <ul class="tag-list">
                             <li class="tag-default tag-pill tag-outline">realworld</li>
                             <li class="tag-default tag-pill tag-outline">implementations</li>
@@ -725,7 +733,16 @@ fn placeholder_articles() -> [Article; 2] {
             slug: "how-to-build-webapps-that-scale".into(),
             title: "How to build webapps that scale".into(),
             description: "This is the description for the post.".into(),
-            body: "this is some content".into(),
+            body: "\
+# Header
+
+this is some content
+
+- list 1
+- list 2
+- list 3
+
+".into(),
             tags: vec!["realworld".into(), "implementations".into()],
             created_at: "January 20th".into(),
             updated_at: None,
