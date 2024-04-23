@@ -1,7 +1,7 @@
 #![allow(clippy::empty_docs)]
 
 use crate::{
-    error_template::{AppError, ErrorTemplate},
+    error_template::{AppError, error_boundary_fallback, ErrorTemplate},
     models::{
         article::{Article, Feed},
         comment::Comment,
@@ -689,9 +689,7 @@ fn Comments(#[prop(into)] article_slug: MaybeSignal<String>) -> impl IntoView {
                     comments()
                         .map(move |data| {
                             view! {
-                                <ErrorBoundary fallback=|errors| {
-                                    view! { <ErrorTemplate errors=errors/> }
-                                }>
+                                <ErrorBoundary fallback=error_boundary_fallback>
 
                                     {data
                                         .map(|comments| {
@@ -882,9 +880,7 @@ fn Feed(kind: FeedKind, children: Children) -> impl IntoView {
                     feed()
                         .map(move |data| {
                             view! {
-                                <ErrorBoundary fallback=|errors| {
-                                    view! { <ErrorTemplate errors=errors/> }
-                                }>
+                                <ErrorBoundary fallback=error_boundary_fallback>
 
                                     {data
                                         .map(|articles| {

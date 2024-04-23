@@ -16,6 +16,10 @@ impl AppError {
     }
 }
 
+pub fn error_boundary_fallback(errors: RwSignal<Errors>) -> impl IntoView {
+    view! { <ErrorTemplate errors=errors/> }
+}
+
 // A basic function to display errors served by the error boundaries.
 // Feel free to do more complicated things here than just displaying the error.
 #[component]
