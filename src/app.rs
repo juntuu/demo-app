@@ -1,6 +1,12 @@
 #![allow(clippy::empty_docs)]
 
-use crate::error_template::{AppError, ErrorTemplate};
+use crate::{
+    error_template::{AppError, ErrorTemplate},
+    models::{
+        article::{Article, Feed},
+        user::Profile,
+    },
+};
 use leptos::*;
 use leptos_meta::{provide_meta_context, Stylesheet, Title};
 use leptos_router::*;
@@ -576,11 +582,12 @@ fn Article() -> impl IntoView {
             <div class="container page">
                 <div class="row article-content">
                     <div class="col-md-12">
-                        <p>
-                            Web development technologies have evolved at an incredible clip over the past few years.
-                        </p>
-                        <h2 id="introducing-ionic">Introducing RealWorld.</h2>
-                        <p>"It's a great solution for learning how other frameworks work."</p>
+                        <pre>
+                            {&article.body}
+                        </pre>
+                        <noscript>
+                        // TODO: render markdown
+                        </noscript>
                         <ul class="tag-list">
                             <li class="tag-default tag-pill tag-outline">realworld</li>
                             <li class="tag-default tag-pill tag-outline">implementations</li>
@@ -694,53 +701,15 @@ enum FeedKind {
     Tag(String),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Author {
-    pub username: String,
-    pub bio: Option<String>,
-    pub image: Option<String>,
-    #[serde(default)]
-    pub following: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Article {
-    pub slug: String,
-    pub title: String,
-    pub description: String,
-    pub body: String,
-    #[serde(rename = "tagList")]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub tags: Vec<String>,
-    // TODO: consider using proper date type
-    #[serde(rename = "createdAt")]
-    pub created_at: String,
-    #[serde(rename = "updatedAt")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at: Option<String>,
-    #[serde(default)]
-    pub favorited: bool,
-    #[serde(rename = "favoritesCount")]
-    pub favorites_count: u32,
-    pub author: Author,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Articles {
-    pub articles: Vec<Article>,
-    /// The full number of articles in the requested feed
-    pub articles_count: u32,
-}
-
-fn placeholder_authors() -> [Author; 2] {
+fn placeholder_authors() -> [Profile; 2] {
     [
-        Author {
+        Profile {
             username: "eric-simons".into(),
             bio: None,
             image: Some("http://i.imgur.com/Qr71crq.jpg".into()),
             following: false,
         },
-        Author {
+        Profile {
             username: "albert-pai".into(),
             bio: None,
             image: Some("http://i.imgur.com/N4VcUeJ.jpg".into()),
@@ -756,7 +725,7 @@ fn placeholder_articles() -> [Article; 2] {
             slug: "how-to-build-webapps-that-scale".into(),
             title: "How to build webapps that scale".into(),
             description: "This is the description for the post.".into(),
-            body: "".into(),
+            body: "this is some content".into(),
             tags: vec!["realworld".into(), "implementations".into()],
             created_at: "January 20th".into(),
             updated_at: None,
@@ -784,20 +753,21 @@ fn placeholder_articles() -> [Article; 2] {
 }
 
 #[server]
-async fn get_feed(kind: FeedKind) -> Result<Articles, ServerFnError> {
-    match kind {
-        FeedKind::Feed => (),
-        FeedKind::Global => (),
-        FeedKind::By(_) => (),
-        FeedKind::Favorited(_) => (),
-        FeedKind::Tag(_) => (),
-    }
+async fn get_feed(kind: FeedKind) -> Result<Feed, ServerFnError> {
+    use crate::models::article::FeedOptions;
 
-    let articles = placeholder_articles().to_vec();
-    let articles_count = articles.len() as u32;
-    Ok(Articles {
-        articles,
-        articles_count,
+    let user = "noone"; // TODO: current user
+    let options = FeedOptions::default();
+    match kind {
+        FeedKind::Feed => Feed::feed(user, &options).await,
+        FeedKind::Global => Feed::global(&options).await,
+        FeedKind::By(user) => Feed::by(&user, &options).await,
+        FeedKind::Favorited(user) => Feed::favorited(&user, &options).await,
+        FeedKind::Tag(tag) => Feed::tag(&tag, &options).await,
+    }
+    .map_err(|e| {
+        tracing::error!("sql error when fetching feed: {:?}", e);
+        ServerFnError::ServerError("Could not fetch feed".into())
     })
 }
 
