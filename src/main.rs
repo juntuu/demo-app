@@ -3,6 +3,7 @@
 async fn main() {
     use axum::Router;
     use demo_app::app::App;
+    use demo_app::auth;
     use demo_app::fileserv::file_and_error_handler;
     use leptos::{get_configuration, logging};
     use leptos_axum::{generate_route_list, LeptosRoutes};
@@ -28,6 +29,7 @@ async fn main() {
         .fallback(file_and_error_handler)
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
+        .layer(axum::middleware::from_fn(auth::server::auth_middleware))
         .with_state(leptos_options);
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();

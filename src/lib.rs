@@ -5,6 +5,7 @@ pub mod fileserv;
 #[cfg(feature = "ssr")]
 pub mod db;
 pub mod models;
+pub mod auth;
 
 #[cfg(feature = "hydrate")]
 #[wasm_bindgen::prelude::wasm_bindgen]

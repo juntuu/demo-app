@@ -16,12 +16,6 @@ pub struct User {
     pub image: Option<String>,
 }
 
-// TODO: move to where auth is done and use proper hashing
-#[cfg(feature = "ssr")]
-fn hash(password: &str) -> String {
-    password.to_owned()
-}
-
 #[cfg(feature = "ssr")]
 impl User {
     pub async fn get(username: &str) -> Result<Self, sqlx::Error> {
@@ -35,7 +29,7 @@ impl User {
     }
 
     pub async fn create(username: &str, email: &str, password: &str) -> Result<Self, sqlx::Error> {
-        let password = hash(password);
+        let password = crate::auth::password::hash(password);
         sqlx::query!(
             "insert into user (username, email, password) values (?, ?, ?)",
             username,
@@ -54,7 +48,7 @@ impl User {
 
     pub async fn update(&self, password: Option<&str>) -> Result<(), sqlx::Error> {
         // TODO: maybe allow changing username
-        if let Some(password) = password.map(hash) {
+        if let Some(password) = password.map(crate::auth::password::hash) {
             sqlx::query!(
                 "update user set
                     email = ?,
