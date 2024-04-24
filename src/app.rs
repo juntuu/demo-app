@@ -617,45 +617,124 @@ fn Editor() -> impl IntoView {
     }
 }
 
+#[server]
+#[tracing::instrument]
+async fn toggle_follow(user: String, current: bool) -> Result<bool, ServerFnError> {
+    let logged_in = crate::auth::require_login()?;
+    if current {
+        sqlx::query!(
+            "delete from follow where follower = ? and followed = ?",
+            logged_in,
+            user
+        )
+    } else {
+        sqlx::query!(
+            "insert or ignore into follow (follower, followed) values (?, ?)",
+            logged_in,
+            user
+        )
+    }
+    .execute(crate::db::get())
+    .await
+    .map(|res| res.rows_affected() == 1)
+    .map_err(|e| {
+        tracing::error!("failed to toggle follow: {:?}", e);
+        ServerFnError::ServerError("database error".into())
+    })
+}
+
+#[server]
+#[tracing::instrument]
+async fn toggle_favorite(article: String, current: bool) -> Result<bool, ServerFnError> {
+    let logged_in = crate::auth::require_login()?;
+    if current {
+        sqlx::query!(
+            "delete from favorite where user = ? and article = ?",
+            logged_in,
+            article
+        )
+    } else {
+        sqlx::query!(
+            "insert or ignore into favorite (user, article) values (?, ?)",
+            logged_in,
+            article
+        )
+    }
+    .execute(crate::db::get())
+    .await
+    .map(|res| res.rows_affected() == 1)
+    .map_err(|e| {
+        tracing::error!("failed to toggle follow: {:?}", e);
+        ServerFnError::ServerError("database error".into())
+    })
+}
+
 #[component]
-fn ArticleActions(article: Article) -> impl IntoView {
+fn ArticleActions(#[prop(into)] article: Signal<Article>) -> impl IntoView {
     // TODO: use reactive Article prop
     let user = use_current_user();
     let is_logged_in = move || user.with(Option::is_some);
-    let author = {
-        let username = article.author.username.clone();
-        Signal::derive(move || username.clone())
-    };
+    let author = Signal::derive(move || article.with(|a| a.author.username.clone()));
     let is_author = Signal::derive(move || {
-        user.with(|user| {
-            user.as_ref()
-                .is_some_and(|user| user.username == author())
-        })
+        user.with(|user| user.as_ref().is_some_and(|user| user.username == author()))
     });
 
-    // TODO: only show appropriate actions if logged in or the author
-    // TODO: use reactive parameters
+    let toggle_follow = create_server_action::<ToggleFollow>();
+    let toggle_favorite = create_server_action::<ToggleFavorite>();
+
     view! {
-        <ArticleMeta article=article.clone()>
+        <ArticleMeta article=article>
             <Suspense>
                 <Show
                     when=is_author
                     fallback=move || {
                         view! {
                             <Show when=is_logged_in>
-                                <button class="btn btn-sm btn-outline-secondary">
-                                    <i class="ion-plus-round"></i>
-                                    {NBSP}
-                                    Follow
-                                    {author}
-                                </button>
+                                <ActionForm action=toggle_follow>
+                                    <button
+                                        type="submit"
+                                        disabled=toggle_follow.pending()
+                                        class="btn btn-sm btn-outline-secondary"
+                                    >
+                                        <i class="ion-plus-round"></i>
+                                        {NBSP}
+                                        Follow
+                                        {author}
+                                    </button>
+                                    <input type="hidden" name="user" value=author/>
+                                    <input
+                                        type="hidden"
+                                        name="current"
+                                        value=move || {
+                                            article.with(|a| a.author.following).to_string()
+                                        }
+                                    />
+                                </ActionForm>
                                 {NBSP}
-                                <button class="btn btn-sm btn-outline-primary">
-                                    <i class="ion-heart"></i>
-                                    {NBSP}
-                                    Favorite Article
-                                    <span class="counter">"(" {article.favorites_count} ")"</span>
-                                </button>
+                                <ActionForm action=toggle_favorite>
+                                    <button
+                                        type="submit"
+                                        disabled=toggle_favorite.pending()
+                                        class="btn btn-sm btn-outline-primary"
+                                    >
+                                        <i class="ion-heart"></i>
+                                        {NBSP}
+                                        Favorite Article
+                                        <span class="counter">
+                                            "(" {move || article.with(|a| a.favorites_count)} ")"
+                                        </span>
+                                    </button>
+                                    <input
+                                        type="hidden"
+                                        name="article"
+                                        value=move || article.with(|a| a.slug.clone())
+                                    />
+                                    <input
+                                        type="hidden"
+                                        name="current"
+                                        value=move || article.with(|a| a.favorited).to_string()
+                                    />
+                                </ActionForm>
                             </Show>
                         }
                     }
@@ -680,13 +759,14 @@ fn ArticleActions(article: Article) -> impl IntoView {
 fn Article() -> impl IntoView {
     // TODO: update to switch between follow/favorite AND edit/delete
     let [article, _] = placeholder_articles();
+    let (article, _) = create_signal(article);
     view! {
         <div class="article-page">
             <div class="banner">
                 <div class="container">
-                    <h1>{&article.title}</h1>
+                    <h1>{move || article.with(|a| a.title.clone())}</h1>
 
-                    <ArticleActions article=article.clone()/>
+                    <ArticleActions article=article/>
                 </div>
             </div>
 
@@ -695,7 +775,7 @@ fn Article() -> impl IntoView {
                     <div class="col-md-12">
                         // TODO: This is a bit of a hack, but let's roll with it for now
                         <div id="content" style="all: initial">
-                            <pre>{&article.body}</pre>
+                            <pre>{move || article.with(|a| a.body.clone())}</pre>
                             <div></div>
                         </div>
                         <script type="module">
@@ -707,18 +787,23 @@ fn Article() -> impl IntoView {
                                 target.innerHTML = DOMPurify.sanitize(marked.parse(pre.textContent));
                             "
                         </script>
-                        <TagList outline=true tags=article.tags.clone()/>
+                        <TagList
+                            outline=true
+                            tags=Signal::derive(move || article.with(|a| a.tags.clone()))
+                        />
                     </div>
                 </div>
 
                 <hr/>
 
                 <div class="article-actions">
-                    <ArticleActions article=article.clone()/>
+                    <ArticleActions article=article/>
                 </div>
 
                 <div class="row">
-                    <Comments article_slug=article.slug.clone()/>
+                    <Comments article_slug=Signal::derive(move || {
+                        article.with(|a| a.slug.clone())
+                    })/>
                 </div>
             </div>
         </div>
@@ -911,20 +996,34 @@ fn format_date(date: &str) -> String {
 }
 
 #[component]
-fn ArticleMeta(article: Article, children: Children) -> impl IntoView {
-    let author_link = profile_link(&article.author.username);
+fn ArticleMeta(#[prop(into)] article: Signal<Article>, children: Children) -> impl IntoView {
+    let author_link = move || article.with(|a| profile_link(&a.author.username));
     view! {
-        <div class="article-meta">
-            <A href=author_link
-                .clone()>{article.author.image.map(|url| view! { <img src=url/> })}</A>
+        <div
+            class="article-meta"
+            style="display: flex; flex-direction: row; justify-content: center"
+        >
+            <A href=author_link>
+                {move || {
+                    article.with(|a| a.author.image.as_ref().map(|url| view! { <img src=url/> }))
+                }}
+
+            </A>
             <div class="info">
                 <A href=author_link class="author">
-                    {article.author.username}
+                    {move || article.with(|a| a.author.username.clone())}
                 </A>
-                <span class="date">{format_date(&article.created_at)}</span>
-                {article
-                    .updated_at
-                    .map(|updated| view! { <span class="date">{format_date(&updated)}</span> })}
+                <span class="date">{move || article.with(|a| format_date(&a.created_at))}</span>
+                {move || {
+                    article
+                        .with(|a| {
+                            a.updated_at
+                                .as_ref()
+                                .map(|updated| {
+                                    view! { <span class="date">{format_date(updated)}</span> }
+                                })
+                        })
+                }}
 
             </div>
             {children()}
@@ -933,21 +1032,24 @@ fn ArticleMeta(article: Article, children: Children) -> impl IntoView {
 }
 
 #[component]
-fn ArticlePreview(article: Article) -> impl IntoView {
-    let article_link = format!("/article/{}", article.slug);
+fn ArticlePreview(#[prop(into)] article: Signal<Article>) -> impl IntoView {
+    let article_link = move || article.with(|a| format!("/article/{}", a.slug));
     view! {
         <div class="article-preview">
-            <ArticleMeta article=article.clone()>
+            <ArticleMeta article=article>
                 <button class="btn btn-outline-primary btn-sm pull-xs-right">
                     <i class="ion-heart"></i>
-                    {article.favorites_count}
+                    {move || article.with(|a| a.favorites_count)}
                 </button>
             </ArticleMeta>
             <A href=article_link class="preview-link">
-                <h1>{article.title}</h1>
-                <p>{article.description}</p>
+                <h1>{move || article.with(|a| a.title.clone())}</h1>
+                <p>{move || article.with(|a| a.description.clone())}</p>
                 <span>Read more...</span>
-                <TagList outline=true tags=article.tags/>
+                <TagList
+                    outline=true
+                    tags=Signal::derive(move || article.with(|a| a.tags.clone()))
+                />
             </A>
         </div>
     }
@@ -980,7 +1082,7 @@ fn Feed(#[prop(into)] kind: MaybeSignal<FeedKind>, children: Children) -> impl I
                                                     key=|article| article.slug.clone()
                                                     let:article
                                                 >
-                                                    <ArticlePreview article=article/>
+                                                    <ArticlePreview article=create_rw_signal(article)/>
                                                 </For>
                                             }
                                         })}
