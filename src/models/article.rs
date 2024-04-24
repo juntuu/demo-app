@@ -64,31 +64,13 @@ macro_rules! feed_query {
     })
 }
 
-fn placeholder_authors() -> [Profile; 2] {
-    [
-        Profile {
-            username: "eric-simons".into(),
-            bio: None,
-            image: Some("http://i.imgur.com/Qr71crq.jpg".into()),
-            following: false,
-        },
-        Profile {
-            username: "albert-pai".into(),
-            bio: None,
-            image: Some("http://i.imgur.com/N4VcUeJ.jpg".into()),
-            following: false,
-        },
-    ]
-}
-
-fn placeholder_articles() -> [Article; 2] {
-    let [first, second] = placeholder_authors();
-    [
-        Article {
-            slug: "how-to-build-webapps-that-scale".into(),
-            title: "How to build webapps that scale".into(),
-            description: "This is the description for the post.".into(),
-            body: "\
+#[cfg(feature = "ssr")]
+fn placeholder_article() -> Article {
+    Article {
+        slug: "how-to-build-webapps-that-scale".into(),
+        title: "How to build webapps that scale".into(),
+        description: "This is the description for the post.".into(),
+        body: "\
 # Header
 
 this is some content
@@ -98,31 +80,19 @@ this is some content
 - list 3
 
 "
-            .into(),
-            tags: vec!["realworld".into(), "implementations".into()],
-            created_at: "January 20th".into(),
-            updated_at: None,
-            favorited: false,
-            favorites_count: 29,
-            author: first,
+        .into(),
+        tags: vec!["realworld".into(), "implementations".into()],
+        created_at: "January 20th".into(),
+        updated_at: None,
+        favorited: false,
+        favorites_count: 29,
+        author: Profile {
+            username: "eric-simons".into(),
+            bio: None,
+            image: Some("http://i.imgur.com/Qr71crq.jpg".into()),
+            following: false,
         },
-        Article {
-            slug: "the-song-you".into(),
-            title: "The song you won't ever stop singing. No matter how hard you try.".into(),
-            description: "This is the description for the post.".into(),
-            body: "".into(),
-            tags: vec![
-                "realworld".into(),
-                "implementations".into(),
-                "one-more".into(),
-            ],
-            created_at: "January 20th".into(),
-            updated_at: None,
-            favorited: false,
-            favorites_count: 32,
-            author: second,
-        },
-    ]
+    }
 }
 
 #[cfg(feature = "ssr")]
@@ -139,10 +109,9 @@ impl Article {
         .fetch_optional(crate::db::get())
         .await?;
 
-        // TODO: remove placeholders and go back to `fetch_one()` above
+        // TODO: remove placeholder and go back to `fetch_one()` above
         let Some(mut article) = article else {
-            let [article, _] = placeholder_articles();
-            return Ok(article);
+            return Ok(placeholder_article());
         };
 
         // FIXME: sqlx does not support subqueries (at least properly).
