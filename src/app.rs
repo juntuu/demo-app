@@ -243,6 +243,7 @@ fn Footer() -> impl IntoView {
 }
 
 /// Renders the home page of your application.
+/// Expects a feed as nested route.
 #[component]
 fn HomePage() -> impl IntoView {
     view! {
@@ -256,7 +257,9 @@ fn HomePage() -> impl IntoView {
 
             <div class="container page">
                 <div class="row">
-                    <Outlet/>
+                    <Suspense fallback=|| "Loading feed...">
+                        <Outlet/>
+                    </Suspense>
 
                     <div class="col-md-3">
                         <div class="sidebar">
