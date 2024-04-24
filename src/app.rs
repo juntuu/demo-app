@@ -151,6 +151,8 @@ fn NavLink(#[prop(into)] href: MaybeSignal<String>, children: Children) -> impl 
                         }
                     });
                 if active {
+                    // TODO: see if `aria-current` could be used for the `active` class,
+                    // since the <A> tag should set that for links.
                     "nav-link active"
                 } else {
                     "nav-link"
