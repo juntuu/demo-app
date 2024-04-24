@@ -244,6 +244,43 @@ fn Footer() -> impl IntoView {
     }
 }
 
+#[component]
+fn TagLink(
+    #[prop(into)] tag: MaybeSignal<String>,
+    #[prop(optional)] outline: bool,
+) -> impl IntoView {
+    let href = {
+        let tag = tag.clone();
+        move || format!("/tag/{}", tag())
+    };
+    let class = if outline {
+        "tag-pill tag-default tag-outline"
+    } else {
+        "tag-pill tag-default"
+    };
+    view! {
+        <li>
+            <A href=href class=class>
+                {tag}
+            </A>
+        </li>
+    }
+}
+
+#[component]
+fn TagList(
+    #[prop(into)] tags: MaybeSignal<Vec<String>>,
+    #[prop(optional)] outline: bool,
+) -> impl IntoView {
+    view! {
+        <ul class="tag-list">
+            <For each=tags key=|tag| tag.clone() let:tag>
+                <TagLink tag=tag outline=outline/>
+            </For>
+        </ul>
+    }
+}
+
 /// Renders the home page of your application.
 /// Expects a feed as nested route.
 #[component]
@@ -267,32 +304,16 @@ fn HomePage() -> impl IntoView {
                         <div class="sidebar">
                             <p>Popular Tags</p>
 
-                            <div class="tag-list">
-                                <a href="" class="tag-pill tag-default">
-                                    programming
-                                </a>
-                                <a href="" class="tag-pill tag-default">
-                                    javascript
-                                </a>
-                                <a href="" class="tag-pill tag-default">
-                                    emberjs
-                                </a>
-                                <a href="" class="tag-pill tag-default">
-                                    angularjs
-                                </a>
-                                <a href="" class="tag-pill tag-default">
-                                    react
-                                </a>
-                                <a href="" class="tag-pill tag-default">
-                                    mean
-                                </a>
-                                <a href="" class="tag-pill tag-default">
-                                    node
-                                </a>
-                                <a href="" class="tag-pill tag-default">
-                                    rails
-                                </a>
-                            </div>
+                            <TagList tags=vec![
+                                "programming".into(),
+                                "javascript".into(),
+                                "emberjs".into(),
+                                "angularjs".into(),
+                                "react".into(),
+                                "mean".into(),
+                                "node".into(),
+                                "rails".into(),
+                            ]/>
                         </div>
                     </div>
                 </div>
@@ -576,6 +597,7 @@ fn Editor() -> impl IntoView {
                                         class="form-control"
                                         placeholder="Enter tags"
                                     />
+                                    // TODO: client side fancy stuff for tags
                                     <div class="tag-list">
                                         <span class="tag-default tag-pill">
                                             <i class="ion-close-round"></i>
@@ -657,10 +679,7 @@ fn Article() -> impl IntoView {
                                 target.innerHTML = DOMPurify.sanitize(marked.parse(pre.textContent));
                             "
                         </script>
-                        <ul class="tag-list">
-                            <li class="tag-default tag-pill tag-outline">realworld</li>
-                            <li class="tag-default tag-pill tag-outline">implementations</li>
-                        </ul>
+                        <TagList outline=true tags=article.tags.clone()/>
                     </div>
                 </div>
 
@@ -900,16 +919,7 @@ fn ArticlePreview(article: Article) -> impl IntoView {
                 <h1>{article.title}</h1>
                 <p>{article.description}</p>
                 <span>Read more...</span>
-                <ul class="tag-list">
-                    {article
-                        .tags
-                        .iter()
-                        .map(|tag| {
-                            view! { <li class="tag-default tag-pill tag-outline">{tag}</li> }
-                        })
-                        .collect_view()}
-
-                </ul>
+                <TagList outline=true tags=article.tags/>
             </A>
         </div>
     }
