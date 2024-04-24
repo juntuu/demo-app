@@ -33,7 +33,7 @@ pub fn App() -> impl IntoView {
         move || (versions.0(), versions.1(), versions.2()),
         |_| crate::auth::logged_in_user(),
     );
-    let maybe_user = Signal::derive(move || user().and_then(Result::ok));
+    let maybe_user = Signal::derive(move || user().and_then(Result::ok).flatten());
     provide_context(maybe_user);
 
     view! {

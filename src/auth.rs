@@ -56,16 +56,16 @@ pub async fn logout() -> Result<(), ServerFnError> {
 }
 
 #[server]
-pub async fn logged_in_user() -> Result<User, ServerFnError> {
+pub async fn logged_in_user() -> Result<Option<User>, ServerFnError> {
     if let Some(username) =
         use_context::<http::request::Parts>().and_then(|req| server::get_username(&req.headers))
     {
-        User::get(&username).await.map_err(|e| {
+        User::get(&username).await.map(Option::Some).map_err(|e| {
             tracing::error!("could not get user: {:?}", e);
             ServerFnError::ServerError("Could not find user".into())
         })
     } else {
-        Err(ServerFnError::ServerError("Must be logged in".into()))
+        Ok(None)
     }
 }
 
