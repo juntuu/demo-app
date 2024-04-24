@@ -619,7 +619,6 @@ fn Editor() -> impl IntoView {
 }
 
 #[server]
-#[tracing::instrument]
 async fn toggle_follow(user: String, current: bool) -> Result<bool, ServerFnError> {
     let logged_in = crate::auth::require_login()?;
     if current {
@@ -645,7 +644,6 @@ async fn toggle_follow(user: String, current: bool) -> Result<bool, ServerFnErro
 }
 
 #[server]
-#[tracing::instrument]
 async fn toggle_favorite(article: String, current: bool) -> Result<bool, ServerFnError> {
     let logged_in = crate::auth::require_login()?;
     if current {
