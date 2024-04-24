@@ -619,31 +619,59 @@ fn Editor() -> impl IntoView {
 
 #[component]
 fn ArticleActions(article: Article) -> impl IntoView {
+    // TODO: use reactive Article prop
+    let user = use_current_user();
+    let is_logged_in = move || user.with(Option::is_some);
+    let author = {
+        let username = article.author.username.clone();
+        Signal::derive(move || username.clone())
+    };
+    let is_author = Signal::derive(move || {
+        user.with(|user| {
+            user.as_ref()
+                .is_some_and(|user| user.username == author())
+        })
+    });
+
     // TODO: only show appropriate actions if logged in or the author
     // TODO: use reactive parameters
     view! {
         <ArticleMeta article=article.clone()>
-            <button class="btn btn-sm btn-outline-secondary">
-                <i class="ion-plus-round"></i>
-                {NBSP}
-                Follow
-                {&article.author.username}
-            </button>
-            {NBSP}
-            <button class="btn btn-sm btn-outline-primary">
-                <i class="ion-heart"></i>
-                {NBSP}
-                Favorite Article
-                <span class="counter">"(" {article.favorites_count} ")"</span>
-            </button>
-            <button class="btn btn-sm btn-outline-secondary">
-                <i class="ion-edit"></i>
-                Edit Article
-            </button>
-            <button class="btn btn-sm btn-outline-danger">
-                <i class="ion-trash-a"></i>
-                Delete Article
-            </button>
+            <Suspense>
+                <Show
+                    when=is_author
+                    fallback=move || {
+                        view! {
+                            <Show when=is_logged_in>
+                                <button class="btn btn-sm btn-outline-secondary">
+                                    <i class="ion-plus-round"></i>
+                                    {NBSP}
+                                    Follow
+                                    {author}
+                                </button>
+                                {NBSP}
+                                <button class="btn btn-sm btn-outline-primary">
+                                    <i class="ion-heart"></i>
+                                    {NBSP}
+                                    Favorite Article
+                                    <span class="counter">"(" {article.favorites_count} ")"</span>
+                                </button>
+                            </Show>
+                        }
+                    }
+                >
+
+                    <button class="btn btn-sm btn-outline-secondary">
+                        <i class="ion-edit"></i>
+                        Edit Article
+                    </button>
+                    {NBSP}
+                    <button class="btn btn-sm btn-outline-danger">
+                        <i class="ion-trash-a"></i>
+                        Delete Article
+                    </button>
+                </Show>
+            </Suspense>
         </ArticleMeta>
     }
 }

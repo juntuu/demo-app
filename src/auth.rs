@@ -57,9 +57,7 @@ pub async fn logout() -> Result<(), ServerFnError> {
 
 #[server]
 pub async fn logged_in_user() -> Result<Option<User>, ServerFnError> {
-    if let Some(username) =
-        use_context::<http::request::Parts>().and_then(|req| server::get_username(&req.headers))
-    {
+    if let Some(username) = authenticated_username() {
         User::get(&username).await.map(Option::Some).map_err(|e| {
             tracing::error!("could not get user: {:?}", e);
             ServerFnError::ServerError("Could not find user".into())
@@ -99,6 +97,16 @@ pub mod password {
             }
         }
     }
+}
+
+#[cfg(feature = "ssr")]
+pub fn require_login() -> Result<String, ServerFnError> {
+    authenticated_username().ok_or_else(|| ServerFnError::ServerError("Not logged in".into()))
+}
+
+#[cfg(feature = "ssr")]
+fn authenticated_username() -> Option<String> {
+    use_context::<http::request::Parts>().and_then(|req| server::get_username(&req.headers))
 }
 
 #[cfg(feature = "ssr")]
