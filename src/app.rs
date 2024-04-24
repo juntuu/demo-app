@@ -14,7 +14,7 @@ use leptos_router::*;
 use serde::{Deserialize, Serialize};
 
 fn use_current_user() -> Signal<Option<User>> {
-    use_context().expect("current user context provided")
+    expect_context()
 }
 
 type VoidAction<T> = Action<T, Result<(), ServerFnError>>;
