@@ -48,7 +48,8 @@ pub async fn logout() -> Result<(), ServerFnError> {
         .expect("response options")
         .insert_header(
             http::header::SET_COOKIE,
-            http::HeaderValue::from_str("session=; path=/").expect("set cookie header"),
+            http::HeaderValue::from_str("session=; path=/; SameSite=Strict")
+                .expect("set cookie header"),
         );
     leptos_axum::redirect("/login");
     Ok(())
@@ -187,8 +188,10 @@ pub mod server {
         .expect("encode token");
         res.insert_header(
             http::header::SET_COOKIE,
-            http::HeaderValue::from_str(&format!("session={token}; path=/; HttpOnly"))
-                .expect("set cookie header"),
+            http::HeaderValue::from_str(&format!(
+                "session={token}; path=/; HttpOnly; SameSite=Strict"
+            ))
+            .expect("set cookie header"),
         );
         Some(())
     }

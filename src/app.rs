@@ -1,11 +1,11 @@
 #![allow(clippy::empty_docs)]
 
 use crate::{
-    error_template::{AppError, error_boundary_fallback, ErrorTemplate},
+    error_template::{error_boundary_fallback, AppError, ErrorTemplate},
     models::{
         article::{Article, Feed},
         comment::Comment,
-        user::Profile,
+        user::{Profile, User},
     },
 };
 use leptos::*;
@@ -13,10 +13,28 @@ use leptos_meta::{provide_meta_context, Stylesheet, Title};
 use leptos_router::*;
 use serde::{Deserialize, Serialize};
 
+fn use_current_user() -> Signal<Option<User>> {
+    use_context().expect("current user context provided")
+}
+
+type VoidAction<T> = Action<T, Result<(), ServerFnError>>;
+
 #[component]
 pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
     provide_meta_context();
+
+    let login = create_server_action::<crate::auth::Login>();
+    let logout = create_server_action::<crate::auth::Logout>();
+    let register = create_server_action::<crate::auth::Register>();
+
+    let versions = (login.version(), logout.version(), register.version());
+    let user = create_blocking_resource(
+        move || (versions.0(), versions.1(), versions.2()),
+        |_| crate::auth::logged_in_user(),
+    );
+    let maybe_user = Signal::derive(move || user().and_then(Result::ok));
+    provide_context(maybe_user);
 
     view! {
         <Title text="Conduit"/>
@@ -42,20 +60,22 @@ pub fn App() -> impl IntoView {
         >
 
             <header>
-                <Nav/>
+                <Suspense>
+                    <Nav/>
+                </Suspense>
             </header>
             <main>
                 <Routes>
-                    <Route path="" view=HomePage>
+                    <Route path="/" view=HomePage>
                         <Route
                             path=""
-                            view=|| {
+                            view=move || {
                                 view! {
                                     <Feed kind=FeedKind::Global>
-                                        <NavLink href="/feed">Your Feed</NavLink>
-                                        <NavLink href="" active=true>
-                                            Global Feed
-                                        </NavLink>
+                                        <Show when=move || maybe_user.with(Option::is_some)>
+                                            <NavLink href="/feed">Your Feed</NavLink>
+                                        </Show>
+                                        <NavLink href="">Global Feed</NavLink>
                                     </Feed>
                                 }
                             }
@@ -63,12 +83,12 @@ pub fn App() -> impl IntoView {
 
                         <Route
                             path="/feed"
-                            view=|| {
+                            view=move || {
                                 view! {
                                     <Feed kind=FeedKind::Feed>
-                                        <NavLink href="/feed" active=true>
-                                            Your Feed
-                                        </NavLink>
+                                        <Show when=move || maybe_user.with(Option::is_some)>
+                                            <NavLink href="">Your Feed</NavLink>
+                                        </Show>
                                         <NavLink href="/">Global Feed</NavLink>
                                     </Feed>
                                 }
@@ -77,28 +97,27 @@ pub fn App() -> impl IntoView {
 
                         <Route
                             path="/tag/:tag"
-                            view=|| {
+                            view=move || {
                                 let params = use_params_map();
                                 let tag = move || {
                                     params.with(|map| map.get("tag").cloned().unwrap_or_default())
                                 };
                                 view! {
-                                    <Feed kind=FeedKind::Tag(tag())>
-                                        <NavLink href="/feed">Your Feed</NavLink>
+                                    <Feed kind=Signal::derive(move || FeedKind::Tag(tag()))>
+                                        <Show when=move || maybe_user.with(Option::is_some)>
+                                            <NavLink href="/feed">Your Feed</NavLink>
+                                        </Show>
                                         <NavLink href="/">Global Feed</NavLink>
-                                        <NavLink href="" active=true>
-                                            #
-                                            {tag}
-                                        </NavLink>
+                                        <NavLink href=""># {tag}</NavLink>
                                     </Feed>
                                 }
                             }
                         />
 
                     </Route>
-                    <Route path="/login" view=Login/>
-                    <Route path="/register" view=Register/>
-                    <Route path="/settings" view=Settings/>
+                    <Route path="/login" view=move || view! { <Login login=login/> }/>
+                    <Route path="/register" view=move || view! { <Register register=register/> }/>
+                    <Route path="/settings" view=move || view! { <Settings logout=logout/> }/>
                     <Route path="/profile/:username" view=|| view! { <Profile/> }/>
                     <Route
                         path="/profile/:username/favorites"
@@ -117,19 +136,31 @@ pub fn App() -> impl IntoView {
 }
 
 #[component]
-fn NavLink(
-    href: &'static str,
-    #[prop(optional)] active: bool,
-    children: Children,
-) -> impl IntoView {
-    let link_class = if active {
-        "nav-link active"
-    } else {
-        "nav-link"
+fn NavLink(#[prop(into)] href: MaybeSignal<String>, children: Children) -> impl IntoView {
+    let class = {
+        let path = use_location().pathname;
+        let href = href.clone();
+        move || {
+            href.with(|href| {
+                let active = href.is_empty()
+                    || path.with(|path| {
+                        if href == "/" {
+                            path == "/"
+                        } else {
+                            path.starts_with(href)
+                        }
+                    });
+                if active {
+                    "nav-link active"
+                } else {
+                    "nav-link"
+                }
+            })
+        }
     };
     view! {
         <li class="nav-item">
-            <A class=link_class href=href>
+            <A class=class href=href>
                 {children()}
             </A>
         </li>
@@ -140,55 +171,56 @@ const NBSP: &str = "\u{A0}";
 
 #[component]
 fn Nav() -> impl IntoView {
-    let authenticated = false; // TODO
-    if authenticated {
-        view! {
-            <nav class="navbar navbar-light">
-                <div class="container">
-                    <a class="navbar-brand" href="/">
-                        conduit
-                    </a>
-                    <ul class="nav navbar-nav pull-xs-right">
-                        // Add "active" class when you're on that page
-                        <NavLink href="/" active=true>
-                            Home
-                        </NavLink>
-                        <NavLink href="/editor">
-                            <i class="ion-compose"></i>
-                            {NBSP}
-                            New Article
-                        </NavLink>
-                        <NavLink href="/settings">
-                            <i class="ion-gear-a"></i>
-                            {NBSP}
-                            Settings
-                        </NavLink>
-                        <NavLink href="/profile/eric-simons">
-                            <img src="" class="user-pic"/>
-                            Eric Simons
-                        </NavLink>
-                    </ul>
-                </div>
-            </nav>
-        }
-    } else {
-        view! {
-            <nav class="navbar navbar-light">
-                <div class="container">
-                    <a class="navbar-brand" href="/">
-                        conduit
-                    </a>
-                    <ul class="nav navbar-nav pull-xs-right">
-                        // Add "active" class when you're on that page
-                        <NavLink href="/" active=true>
-                            Home
-                        </NavLink>
+    let user = use_current_user();
+    create_effect(move |_| {
+        logging::log!("{:?}", user());
+    });
+    view! {
+        <nav class="navbar navbar-light">
+            <div class="container">
+                <a class="navbar-brand" href="/">
+                    conduit
+                </a>
+                <ul class="nav navbar-nav pull-xs-right">
+                    <NavLink href="/">Home</NavLink>
+                    <Show
+                        when=move || user.with(Option::is_none)
+                        fallback=move || {
+                            user()
+                                .map(|user| {
+                                    view! {
+                                        <NavLink href="/editor">
+                                            <i class="ion-compose"></i>
+                                            {NBSP}
+                                            New Article
+                                        </NavLink>
+                                        <NavLink href="/settings">
+                                            <i class="ion-gear-a"></i>
+                                            {NBSP}
+                                            Settings
+                                        </NavLink>
+                                        <NavLink href=profile_link(
+                                            &user.username,
+                                        )>
+                                            {user
+                                                .image
+                                                .map(|img| {
+                                                    view! { <img src=img class="user-pic"/> }
+                                                })}
+                                            {user.username}
+                                        </NavLink>
+                                    }
+                                })
+                        }
+                    >
+
+                        // Either logged out, or fetching current user info
                         <NavLink href="/login">Sign in</NavLink>
                         <NavLink href="/register">Sign up</NavLink>
-                    </ul>
-                </div>
-            </nav>
-        }
+                    </Show>
+                </ul>
+            </div>
+        </nav>
     }
 }
 
@@ -265,7 +297,7 @@ fn HomePage() -> impl IntoView {
 }
 
 #[component]
-fn Login() -> impl IntoView {
+fn Login(login: VoidAction<crate::auth::Login>) -> impl IntoView {
     view! {
         <div class="auth-page">
             <div class="container page">
@@ -276,27 +308,35 @@ fn Login() -> impl IntoView {
                             <a href="/register">Need an account?</a>
                         </p>
 
-                        <ul class="error-messages">
-                            <li>That email is already taken</li>
-                        </ul>
+                        <Show when=move || {
+                            login.value().with(|val| val.as_ref().is_some_and(|x| x.is_err()))
+                        }>
+                            <ul class="error-messages">
+                                <li>Incorrect username or password.</li>
+                            </ul>
+                        </Show>
 
-                        <form>
+                        <ActionForm action=login>
                             <fieldset class="form-group">
                                 <input
                                     class="form-control form-control-lg"
                                     type="text"
-                                    placeholder="Email"
+                                    name="username"
+                                    placeholder="Username"
                                 />
                             </fieldset>
                             <fieldset class="form-group">
                                 <input
                                     class="form-control form-control-lg"
                                     type="password"
+                                    name="password"
                                     placeholder="Password"
                                 />
                             </fieldset>
-                            <button class="btn btn-lg btn-primary pull-xs-right">Sign in</button>
-                        </form>
+                            <button type="submit" class="btn btn-lg btn-primary pull-xs-right">
+                                Sign in
+                            </button>
+                        </ActionForm>
                     </div>
                 </div>
             </div>
@@ -305,7 +345,7 @@ fn Login() -> impl IntoView {
 }
 
 #[component]
-fn Register() -> impl IntoView {
+fn Register(register: VoidAction<crate::auth::Register>) -> impl IntoView {
     view! {
         <div class="auth-page">
             <div class="container page">
@@ -320,11 +360,12 @@ fn Register() -> impl IntoView {
                             <li>That email is already taken</li>
                         </ul>
 
-                        <form>
+                        <ActionForm action=register>
                             <fieldset class="form-group">
                                 <input
                                     class="form-control form-control-lg"
                                     type="text"
+                                    name="username"
                                     placeholder="Username"
                                 />
                             </fieldset>
@@ -332,6 +373,7 @@ fn Register() -> impl IntoView {
                                 <input
                                     class="form-control form-control-lg"
                                     type="text"
+                                    name="email"
                                     placeholder="Email"
                                 />
                             </fieldset>
@@ -339,11 +381,14 @@ fn Register() -> impl IntoView {
                                 <input
                                     class="form-control form-control-lg"
                                     type="password"
+                                    name="password"
                                     placeholder="Password"
                                 />
                             </fieldset>
-                            <button class="btn btn-lg btn-primary pull-xs-right">Sign up</button>
-                        </form>
+                            <button type="submit" class="btn btn-lg btn-primary pull-xs-right">
+                                Sign up
+                            </button>
+                        </ActionForm>
                     </div>
                 </div>
             </div>
@@ -397,18 +442,16 @@ fn Profile(#[prop(optional)] favorites: bool) -> impl IntoView {
                                     } else {
                                         FeedKind::By(author.username)
                                     }>
-                                        <NavLink
-                                            href=if favorites { ".." } else { "" }
-                                            active=!favorites
-                                        >
-                                            My Articles
-                                        </NavLink>
-                                        <NavLink
-                                            href=if favorites { "" } else { "favorites" }
-                                            active=favorites
-                                        >
-                                            Favorited Articles
-                                        </NavLink>
+                                        <NavLink href=if favorites {
+                                            ".."
+                                        } else {
+                                            ""
+                                        }>My Articles</NavLink>
+                                        <NavLink href=if favorites {
+                                            ""
+                                        } else {
+                                            "favorites"
+                                        }>Favorited Articles</NavLink>
                                     </Feed>
                                 }
                             })
@@ -421,7 +464,7 @@ fn Profile(#[prop(optional)] favorites: bool) -> impl IntoView {
 }
 
 #[component]
-fn Settings() -> impl IntoView {
+fn Settings(logout: VoidAction<crate::auth::Logout>) -> impl IntoView {
     view! {
         <div class="settings-page">
             <div class="container page">
@@ -476,7 +519,11 @@ fn Settings() -> impl IntoView {
                             </fieldset>
                         </form>
                         <hr/>
-                        <button class="btn btn-outline-danger">Or click here to logout.</button>
+                        <ActionForm action=logout>
+                            <button type="submit" class="btn btn-outline-danger">
+                                Or click here to logout.
+                            </button>
+                        </ActionForm>
                     </div>
                 </div>
             </div>
@@ -636,7 +683,7 @@ async fn comments(slug: String) -> Result<Vec<Comment>, ServerFnError> {
 
 #[component]
 fn CommentCard(comment: Comment) -> impl IntoView {
-    let link = profile_link(&comment.author);
+    let link = profile_link(&comment.author.username);
     view! {
         <div class="card">
             <div class="card-block">
@@ -803,8 +850,8 @@ async fn get_feed(kind: FeedKind) -> Result<Feed, ServerFnError> {
     })
 }
 
-fn profile_link(user: &Profile) -> String {
-    format!("/profile/{}", user.username)
+fn profile_link(username: &str) -> String {
+    format!("/profile/{}", username)
 }
 
 fn format_date(date: &str) -> String {
@@ -813,7 +860,7 @@ fn format_date(date: &str) -> String {
 
 #[component]
 fn ArticleMeta(article: Article, children: Children) -> impl IntoView {
-    let author_link = profile_link(&article.author);
+    let author_link = profile_link(&article.author.username);
     view! {
         <div class="article-meta">
             <A href=author_link
@@ -864,8 +911,8 @@ fn ArticlePreview(article: Article) -> impl IntoView {
 }
 
 #[component]
-fn Feed(kind: FeedKind, children: Children) -> impl IntoView {
-    let feed = create_resource(move || kind.clone(), get_feed);
+fn Feed(#[prop(into)] kind: MaybeSignal<FeedKind>, children: Children) -> impl IntoView {
+    let feed = create_resource(kind, get_feed);
     view! {
         <div class="col-md-9">
             <div class="feed-toggle">
@@ -873,7 +920,7 @@ fn Feed(kind: FeedKind, children: Children) -> impl IntoView {
             </div>
 
             // TODO: Maybe try `Transition`
-            <Suspense fallback=move || {
+            <Suspense fallback=|| {
                 view! { <p>"Loading feed..."</p> }
             }>
                 {move || {
@@ -902,6 +949,7 @@ fn Feed(kind: FeedKind, children: Children) -> impl IntoView {
 
             </Suspense>
 
+            // TODO
             <ul class="pagination">
                 <li class="page-item active">
                     <a class="page-link" href="">
