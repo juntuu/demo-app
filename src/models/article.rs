@@ -64,6 +64,123 @@ macro_rules! feed_query {
     })
 }
 
+fn placeholder_authors() -> [Profile; 2] {
+    [
+        Profile {
+            username: "eric-simons".into(),
+            bio: None,
+            image: Some("http://i.imgur.com/Qr71crq.jpg".into()),
+            following: false,
+        },
+        Profile {
+            username: "albert-pai".into(),
+            bio: None,
+            image: Some("http://i.imgur.com/N4VcUeJ.jpg".into()),
+            following: false,
+        },
+    ]
+}
+
+fn placeholder_articles() -> [Article; 2] {
+    let [first, second] = placeholder_authors();
+    [
+        Article {
+            slug: "how-to-build-webapps-that-scale".into(),
+            title: "How to build webapps that scale".into(),
+            description: "This is the description for the post.".into(),
+            body: "\
+# Header
+
+this is some content
+
+- list 1
+- list 2
+- list 3
+
+"
+            .into(),
+            tags: vec!["realworld".into(), "implementations".into()],
+            created_at: "January 20th".into(),
+            updated_at: None,
+            favorited: false,
+            favorites_count: 29,
+            author: first,
+        },
+        Article {
+            slug: "the-song-you".into(),
+            title: "The song you won't ever stop singing. No matter how hard you try.".into(),
+            description: "This is the description for the post.".into(),
+            body: "".into(),
+            tags: vec![
+                "realworld".into(),
+                "implementations".into(),
+                "one-more".into(),
+            ],
+            created_at: "January 20th".into(),
+            updated_at: None,
+            favorited: false,
+            favorites_count: 32,
+            author: second,
+        },
+    ]
+}
+
+#[cfg(feature = "ssr")]
+impl Article {
+    pub async fn get(slug: &str, for_user: Option<&str>) -> Result<Self, sqlx::Error> {
+        let mut article = feed_query!(
+            "
+            select article.*, user.bio, user.image
+            from article join user on article.author = user.username
+            where article.slug = ?
+            ",
+            slug,
+        )
+        .fetch_optional(crate::db::get())
+        .await?;
+
+        // TODO: remove placeholders and go back to `fetch_one()` above
+        let Some(mut article) = article else {
+            let [article, _] = placeholder_articles();
+            return Ok(article);
+        };
+
+        // FIXME: sqlx does not support subqueries (at least properly).
+        // Thus we need to fill in some details here with extra queries.
+        article.tags = sqlx::query_scalar!("select tag from tag where article = ?", slug)
+            .fetch_all(crate::db::get())
+            .await?;
+
+        article.favorites_count =
+            sqlx::query_scalar!("select count(*) from favorite where article = ?", slug)
+                .fetch_optional(crate::db::get())
+                .await?
+                .unwrap_or_default() as u32;
+
+        if let Some(user) = for_user {
+            article.favorited = sqlx::query_scalar!(
+                "select article from favorite where article = ? and user = ?",
+                slug,
+                user
+            )
+            .fetch_optional(crate::db::get())
+            .await?
+            .is_some();
+            let author = &article.author.username;
+            article.author.following = sqlx::query_scalar!(
+                "select followed from follow where followed = ? and follower = ?",
+                author,
+                user
+            )
+            .fetch_optional(crate::db::get())
+            .await?
+            .is_some();
+        }
+
+        Ok(article)
+    }
+}
+
 #[cfg(feature = "ssr")]
 impl Feed {
     async fn fill_details(
