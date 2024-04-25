@@ -198,7 +198,7 @@ fn Nav() -> impl IntoView {
                                                 Settings
                                             </NavLink>
                                             <NavLink href=profile_link(&user.username)>
-                                                <img src=user.image.unwrap_or_default() class="user-pic"/>
+                                                <ProfileImg src=user.image class="user-pic"/>
                                                 {user.username}
                                             </NavLink>
                                         }
@@ -443,6 +443,15 @@ async fn profile_data(username: String) -> Result<Profile, ServerFnError> {
 }
 
 #[component]
+fn ProfileImg(
+    #[prop(into)] src: MaybeSignal<Option<String>>,
+    #[prop(optional)] class: &'static str,
+) -> impl IntoView {
+    // TODO: default for missing images
+    view! { <img src=move || src().unwrap_or_default() class=class/> }
+}
+
+#[component]
 fn Profile() -> impl IntoView {
     let user = use_current_user();
     let params = use_params::<UserParam>();
@@ -460,42 +469,42 @@ fn Profile() -> impl IntoView {
                                 {move || {
                                     profile()
                                         .map(|p| {
-                                            p
-                                                .map(|p| {
-                                                    let p = create_rw_signal(p);
-                                                    view! {
-                                                        <div class="col-xs-12 col-md-10 offset-md-1">
-                                                            <img src="http://i.imgur.com/Qr71crq.jpg" class="user-img"/>
-                                                            <h4>{move || p().username}</h4>
-                                                            <p>{move || p().bio}</p>
-                                                            <Show
-                                                                when=move || {
-                                                                    user.with(|u| u.as_ref().is_some_and(|u| u.username == username()))
-                                                                }
-                                                                fallback=move || {
-                                                                    view! {
-                                                                        <button class="btn btn-sm btn-outline-secondary action-btn">
-                                                                            <i class="ion-plus-round"></i>
-                                                                            {NBSP}
-                                                                            Follow
-                                                                            {move || p().username}
-                                                                        </button>
-                                                                    }
-                                                                }
-                                                            >
+                                            p.map(|p| {
+                                                let p = create_rw_signal(p);
+                                                view! {
+                                                    <div class="col-xs-12 col-md-10 offset-md-1">
+                                                        <ProfileImg
+                                                            src=Signal::derive(move || p().image)
+                                                            class="user-img"
+                                                        />
+                                                        <h4>{move || p().username}</h4>
+                                                        <p>{move || p().bio}</p>
+                                                        <Show
+                                                            when=move || {
+                                                                user.with(|u| {
+                                                                    u.as_ref().is_some_and(|u| u.username == username())
+                                                                })
+                                                            }
 
-                                                                <A
-                                                                    href="/settings"
-                                                                    class="btn btn-sm btn-outline-secondary action-btn"
-                                                                >
-                                                                    <i class="ion-gear-a"></i>
-                                                                    {NBSP}
-                                                                    Edit Profile Settings
-                                                                </A>
-                                                            </Show>
-                                                        </div>
-                                                    }
-                                                })
+                                                            fallback=move || {
+                                                                view! {
+                                                                    <FollowButton class="action-btn" profile=p.split()/>
+                                                                }
+                                                            }
+                                                        >
+
+                                                            <A
+                                                                href="/settings"
+                                                                class="btn btn-sm btn-outline-secondary action-btn"
+                                                            >
+                                                                <i class="ion-gear-a"></i>
+                                                                {NBSP}
+                                                                Edit Profile Settings
+                                                            </A>
+                                                        </Show>
+                                                    </div>
+                                                }
+                                            })
                                         })
                                 }}
 
@@ -767,39 +776,49 @@ fn FavoriteButton(article: RwSignal<Article>, #[prop(optional)] compact: bool) -
     }
 }
 
+// Bit annoying to work around different ways signals can be paired and split.
+// Slice has different type to RwSignal::split and there's no (proper) way to join the pairs back.
+// Might improve, see: https://github.com/leptos-rs/leptos/discussions/2356
 #[component]
-fn FollowButton(article: RwSignal<Article>) -> impl IntoView {
+fn FollowButton<R: Fn() -> Profile + 'static + Copy, W: Fn(Profile) + 'static>(
+    #[prop(optional)] class: &'static str,
+    profile: (R, W),
+) -> impl IntoView {
+    let (profile, set_profile) = profile;
     let toggle = create_server_action::<ToggleFollow>();
     let result = toggle.value();
-    let author = move || article.with(|a| a.author.username.clone());
+    let user = move || profile().username;
 
     create_effect(move |_| {
         let success = result.with(|res| matches!(res, Some(Ok(true))));
         if success {
-            article.update(|a| {
-                a.author.following = !a.author.following;
-            });
+            // Note: bit awkward to work with slices
+            let mut p = profile();
+            p.following = !p.following;
+            set_profile(p);
         }
     });
 
+    let follow = create_memo(move |_| {
+        if profile().following {
+            ("Unfollow", "ion-minus-round")
+        } else {
+            ("Follow", "ion-plus-round")
+        }
+    });
+    let class = format!("btn btn-sm btn-outline-secondary {}", class);
+
     view! {
         <ActionForm action=toggle>
-            <button
-                type="submit"
-                disabled=toggle.pending()
-                class="btn btn-sm btn-outline-secondary"
-            >
-                <i class="ion-plus-round"></i>
+            <button type="submit" disabled=toggle.pending() class=class>
+                <i class=move || follow().1></i>
                 {NBSP}
-                Follow
-                {author}
+                {move || follow().0}
+                {NBSP}
+                {user}
             </button>
-            <input type="hidden" name="user" value=author/>
-            <input
-                type="hidden"
-                name="current"
-                value=move || article.with(|a| a.author.following).to_string()
-            />
+            <input type="hidden" name="user" value=user/>
+            <input type="hidden" name="current" value=move || profile().following.to_string()/>
 
         </ActionForm>
     }
@@ -813,6 +832,7 @@ fn ArticleActions(#[prop(into)] article: RwSignal<Article>) -> impl IntoView {
     let is_author = Signal::derive(move || {
         user.with(|user| user.as_ref().is_some_and(|user| user.username == author()))
     });
+    let profile = create_slice(article, |a| a.author.clone(), |a, new| a.author = new);
 
     view! {
         <ArticleMeta article=article>
@@ -821,7 +841,7 @@ fn ArticleActions(#[prop(into)] article: RwSignal<Article>) -> impl IntoView {
                 fallback=move || {
                     view! {
                         <Show when=is_logged_in>
-                            <FollowButton article=article/>
+                            <FollowButton profile=profile/>
                         </Show>
                         <FavoriteButton article=article/>
                     }
@@ -928,7 +948,7 @@ fn CommentCard(comment: Comment) -> impl IntoView {
             </div>
             <div class="card-footer">
                 <A href=link.clone() class="comment-author">
-                    <img src=author.image.unwrap_or_default() class="comment-author-img"/>
+                    <ProfileImg src=author.image class="comment-author-img"/>
                 </A>
                 {NBSP}
                 <A href=link class="comment-author">
@@ -954,7 +974,7 @@ fn Comments(#[prop(into)] article_slug: MaybeSignal<String>) -> impl IntoView {
                     ></textarea>
                 </div>
                 <div class="card-footer">
-                    <img src="http://i.imgur.com/Qr71crq.jpg" class="comment-author-img"/>
+                    <ProfileImg src=None class="comment-author-img"/>
                     <button class="btn btn-sm btn-primary">Post Comment</button>
                 </div>
             </form>
@@ -1031,11 +1051,9 @@ fn ArticleMeta(#[prop(into)] article: Signal<Article>, children: Children) -> im
             class="article-meta"
             style="display: flex; flex-direction: row; justify-content: center; gap: 5px"
         >
-            <Show when=move || image.with(Option::is_some)>
-                <A href=author_link>
-                    <img src=move || image().unwrap_or_default()/>
-                </A>
-            </Show>
+            <A href=author_link>
+                <ProfileImg src=image/>
+            </A>
             <div class="info">
                 <A href=author_link class="author">
                     {move || author.with(|a| a.username.clone())}
