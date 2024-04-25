@@ -1,7 +1,8 @@
 use crate::{
     app::{use_current_user, ArticleSlugParam, FavoriteButton, FollowButton, TagList, NBSP},
     error_template::error_boundary_fallback,
-    models::{article::Article, comment::Comment}, pages::profile::{profile_link, ProfileImg},
+    models::{article::Article, comment::Comment},
+    pages::profile::{profile_link, ProfileImg},
 };
 use leptos::*;
 use leptos_router::*;
@@ -50,10 +51,6 @@ pub fn Preview(#[prop(into)] article: RwSignal<Article>) -> impl IntoView {
     }
 }
 
-fn format_date(date: &str) -> String {
-    date.to_string()
-}
-
 #[component]
 fn ArticleMeta(#[prop(into)] article: Signal<Article>, children: Children) -> impl IntoView {
     let author = Signal::derive(move || article.with(|a| a.author.clone()));
@@ -71,10 +68,10 @@ fn ArticleMeta(#[prop(into)] article: Signal<Article>, children: Children) -> im
                 <A href=author_link class="author">
                     {move || author.with(|a| a.username.clone())}
                 </A>
-                <span class="date">{move || article.with(|a| format_date(&a.created_at))}</span>
+                <span class="date">{move || article.with(|a| a.created_at.clone())}</span>
                 <span class="date">
                     {move || {
-                        article.with(|a| a.updated_at.as_ref().map(|updated| format_date(updated)))
+                        article.with(|a| a.updated_at.as_ref().map(|date| format!("({})", date)))
                     }}
 
                 </span>
