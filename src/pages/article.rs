@@ -83,6 +83,7 @@ fn ArticleMeta(#[prop(into)] article: Signal<Article>, children: Children) -> im
 
 #[server]
 async fn get_article(slug: String, user: Option<String>) -> Result<Article, ServerFnError> {
+    tracing::info!("fetching article: {}", slug);
     Article::get(&slug, user.as_deref()).await.map_err(|e| {
         tracing::error!("could not get article: {:?}", e);
         ServerFnError::ServerError("Failed to get article".into())
