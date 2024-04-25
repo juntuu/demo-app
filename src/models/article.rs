@@ -130,12 +130,58 @@ impl Article {
         slug
     }
 
+    fn validate(
+        title: &str,
+        description: &str,
+        body: &str,
+        tags: &[String],
+    ) -> Option<Vec<String>> {
+        let mut errors = Vec::new();
+        if title.is_empty() {
+            errors.push("missing title");
+        } else if title.len() > 100 {
+            errors.push("too long title");
+        }
+
+        if description.is_empty() {
+            errors.push("missing description");
+        } else if description.len() > 300 {
+            errors.push("too long description");
+        }
+
+        if body.is_empty() {
+            errors.push("missing body");
+        } else if body.len() > 20000 {
+            errors.push("too long body");
+        }
+
+        if tags.iter().any(|tag| {
+            tag.len() > 20
+                || tag
+                    .split('-')
+                    .any(|part| part.is_empty() || part.chars().any(|c| !c.is_ascii_lowercase()))
+        }) {
+            errors.push("invalid tag (must be short, lowercase a-z and in kebab-case)");
+        }
+
+        if errors.is_empty() {
+            None
+        } else {
+            Some(errors.into_iter().map(str::to_owned).collect())
+        }
+    }
+
+    // TODO: the validation errors passed in nested Results is bit weird, but will do for now
     pub async fn create(
         title: &str,
         description: &str,
         body: &str,
         tags: &[String],
-    ) -> Result<String, sqlx::Error> {
+    ) -> Result<Result<String, Vec<String>>, sqlx::Error> {
+        if let Some(errors) = Self::validate(title, description, body, tags) {
+            return Ok(Err(errors));
+        }
+
         let slug = Self::slug_from_title(title);
 
         sqlx::query!(
@@ -150,7 +196,7 @@ impl Article {
 
         Self::add_tags(&slug, tags).await?;
 
-        Ok(slug)
+        Ok(Ok(slug))
     }
 
     pub async fn update(
@@ -159,7 +205,11 @@ impl Article {
         description: &str,
         body: &str,
         tags: &[String],
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<Option<Vec<String>>, sqlx::Error> {
+        if let Some(errors) = Self::validate(title, description, body, tags) {
+            return Ok(Some(errors));
+        }
+
         let res = sqlx::query!(
             "update article set title = ?, description = ?, body = ? where slug = ?",
             title,
@@ -177,7 +227,7 @@ impl Article {
         Self::clear_tags(slug).await?;
         Self::add_tags(slug, tags).await?;
 
-        Ok(())
+        Ok(None)
     }
 
     pub async fn delete(slug: &str) -> Result<(), sqlx::Error> {
