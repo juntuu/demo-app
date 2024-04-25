@@ -598,6 +598,10 @@ fn Editor() -> impl IntoView {
 #[server]
 async fn toggle_follow(user: String, current: bool) -> Result<bool, ServerFnError> {
     let logged_in = crate::auth::require_login()?;
+    if logged_in == user {
+        // Can't follow oneself
+        return Ok(false);
+    }
     if current {
         sqlx::query!(
             "delete from follow where follower = ? and followed = ?",
@@ -623,6 +627,19 @@ async fn toggle_follow(user: String, current: bool) -> Result<bool, ServerFnErro
 #[server]
 async fn toggle_favorite(article: String, current: bool) -> Result<bool, ServerFnError> {
     let logged_in = crate::auth::require_login()?;
+    if sqlx::query_scalar!(
+        "select author = ? from article where slug = ?",
+        logged_in,
+        article
+    )
+    .fetch_optional(crate::db::get())
+    .await?
+    .unwrap_or(1)
+        != 0
+    {
+        // Can't favorite own article
+        return Ok(false);
+    }
     if current {
         sqlx::query!(
             "delete from favorite where user = ? and article = ?",
