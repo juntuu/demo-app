@@ -19,6 +19,14 @@ pub struct Article {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+pub struct ArticleEditFields {
+    pub title: String,
+    pub description: String,
+    pub body: String,
+    pub tags: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Feed {
     pub articles: Vec<Article>,
 }
@@ -113,6 +121,27 @@ impl Article {
         Ok(article)
     }
 
+    pub async fn for_editing(slug: &str, author: &str) -> Result<ArticleEditFields, sqlx::Error> {
+        let article = sqlx::query!(
+            "select title, description, body from article where slug = ? and author = ?",
+            slug,
+            author,
+        )
+        .fetch_one(crate::db::get())
+        .await?;
+
+        let tags = sqlx::query_scalar!("select tag from tag where article = ?", slug)
+            .fetch_all(crate::db::get())
+            .await?;
+
+        Ok(ArticleEditFields {
+            title: article.title,
+            description: article.description,
+            body: article.body,
+            tags,
+        })
+    }
+
     fn slug_from_title(title: &str) -> String {
         let mut slug: String = title
             .chars()
@@ -130,12 +159,7 @@ impl Article {
         slug
     }
 
-    fn validate(
-        title: &str,
-        description: &str,
-        body: &str,
-        tags: &[String],
-    ) -> Option<Vec<String>> {
+    fn validate(title: &str, description: &str, body: &str, tags: &[&str]) -> Option<Vec<String>> {
         let mut errors = Vec::new();
         if title.is_empty() {
             errors.push("missing title");
@@ -177,7 +201,7 @@ impl Article {
         title: &str,
         description: &str,
         body: &str,
-        tags: &[String],
+        tags: &[&str],
     ) -> Result<Result<String, Vec<String>>, sqlx::Error> {
         if let Some(errors) = Self::validate(title, description, body, tags) {
             return Ok(Err(errors));
@@ -207,7 +231,7 @@ impl Article {
         title: &str,
         description: &str,
         body: &str,
-        tags: &[String],
+        tags: &[&str],
     ) -> Result<Option<Vec<String>>, sqlx::Error> {
         if let Some(errors) = Self::validate(title, description, body, tags) {
             return Ok(Some(errors));
@@ -247,7 +271,7 @@ impl Article {
         Ok(())
     }
 
-    async fn add_tags(slug: &str, tags: &[String]) -> Result<(), sqlx::Error> {
+    async fn add_tags(slug: &str, tags: &[&str]) -> Result<(), sqlx::Error> {
         for tag in tags {
             sqlx::query!("insert into tag (article, tag) values (?, ?)", slug, tag)
                 .execute(crate::db::get())
