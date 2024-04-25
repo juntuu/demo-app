@@ -651,11 +651,80 @@ async fn get_article(slug: String, user: Option<String>) -> Result<Article, Serv
 }
 
 #[component]
-fn ArticleActions(
-    #[prop(into)] article: Signal<Article>,
-    toggle_follow: Action<ToggleFollow, Result<bool, ServerFnError>>,
-    toggle_favorite: Action<ToggleFavorite, Result<bool, ServerFnError>>,
-) -> impl IntoView {
+fn FavoriteButton(article: RwSignal<Article>) -> impl IntoView {
+    let toggle = create_server_action::<ToggleFavorite>();
+    let result = toggle.value();
+    let favorited = move || article.with(|a| a.favorited);
+
+    create_effect(move |_| {
+        let success = result.with(|res| matches!(res, Some(Ok(true))));
+        if success {
+            article.update(|a| {
+                if a.favorited {
+                    a.favorited = false;
+                    a.favorites_count -= 1;
+                } else {
+                    a.favorited = true;
+                    a.favorites_count += 1;
+                }
+            });
+        }
+    });
+
+    view! {
+        <ActionForm action=toggle>
+            <button type="submit" disabled=toggle.pending() class="btn btn-sm btn-outline-primary">
+                <i class="ion-heart"></i>
+                {NBSP}
+                Favorite Article
+                <span class="counter">"(" {move || article.with(|a| a.favorites_count)} ")"</span>
+            </button>
+            <input type="hidden" name="article" value=move || article.with(|a| a.slug.clone())/>
+            <input type="hidden" name="current" value=move || favorited().to_string()/>
+        </ActionForm>
+    }
+}
+
+#[component]
+fn FollowButton(article: RwSignal<Article>) -> impl IntoView {
+    let toggle = create_server_action::<ToggleFollow>();
+    let result = toggle.value();
+    let author = Signal::derive(move || article.with(|a| a.author.username.clone()));
+
+    create_effect(move |_| {
+        let success = result.with(|res| matches!(res, Some(Ok(true))));
+        if success {
+            article.update(|a| {
+                a.author.following = !a.author.following;
+            });
+        }
+    });
+
+    view! {
+        <ActionForm action=toggle>
+            <button
+                type="submit"
+                disabled=toggle.pending()
+                class="btn btn-sm btn-outline-secondary"
+            >
+                <i class="ion-plus-round"></i>
+                {NBSP}
+                Follow
+                {author}
+            </button>
+            <input type="hidden" name="user" value=author/>
+            <input
+                type="hidden"
+                name="current"
+                value=move || { article.with(|a| a.author.following).to_string() }
+            />
+
+        </ActionForm>
+    }
+}
+
+#[component]
+fn ArticleActions(#[prop(into)] article: RwSignal<Article>) -> impl IntoView {
     let user = use_current_user();
     let is_logged_in = move || user.with(Option::is_some);
     let author = Signal::derive(move || article.with(|a| a.author.username.clone()));
@@ -671,52 +740,8 @@ fn ArticleActions(
                     fallback=move || {
                         view! {
                             <Show when=is_logged_in>
-                                <ActionForm action=toggle_follow>
-                                    <button
-                                        type="submit"
-                                        disabled=toggle_follow.pending()
-                                        class="btn btn-sm btn-outline-secondary"
-                                    >
-                                        <i class="ion-plus-round"></i>
-                                        {NBSP}
-                                        Follow
-                                        {author}
-                                    </button>
-                                    <input type="hidden" name="user" value=author/>
-                                    <input
-                                        type="hidden"
-                                        name="current"
-                                        value=move || {
-                                            article.with(|a| a.author.following).to_string()
-                                        }
-                                    />
-
-                                </ActionForm>
-                                {NBSP}
-                                <ActionForm action=toggle_favorite>
-                                    <button
-                                        type="submit"
-                                        disabled=toggle_favorite.pending()
-                                        class="btn btn-sm btn-outline-primary"
-                                    >
-                                        <i class="ion-heart"></i>
-                                        {NBSP}
-                                        Favorite Article
-                                        <span class="counter">
-                                            "(" {move || article.with(|a| a.favorites_count)} ")"
-                                        </span>
-                                    </button>
-                                    <input
-                                        type="hidden"
-                                        name="article"
-                                        value=move || article.with(|a| a.slug.clone())
-                                    />
-                                    <input
-                                        type="hidden"
-                                        name="current"
-                                        value=move || article.with(|a| a.favorited).to_string()
-                                    />
-                                </ActionForm>
+                                <FollowButton article=article/>
+                                <FavoriteButton article=article/>
                             </Show>
                         }
                     }
@@ -726,7 +751,6 @@ fn ArticleActions(
                         <i class="ion-edit"></i>
                         Edit Article
                     </button>
-                    {NBSP}
                     <button class="btn btn-sm btn-outline-danger">
                         <i class="ion-trash-a"></i>
                         Delete Article
@@ -738,18 +762,13 @@ fn ArticleActions(
 }
 
 #[component]
-fn ArticleContent(
-    article: Article,
-    toggle_follow: Action<ToggleFollow, Result<bool, ServerFnError>>,
-    toggle_favorite: Action<ToggleFavorite, Result<bool, ServerFnError>>,
-) -> impl IntoView {
+fn ArticleContent(article: Article) -> impl IntoView {
     let article = create_rw_signal(article);
     view! {
         <div class="banner">
             <div class="container">
                 <h1>{move || article.with(|a| a.title.clone())}</h1>
-
-                <ArticleActions article toggle_favorite toggle_follow/>
+                <ArticleActions article/>
             </div>
         </div>
 
@@ -781,9 +800,8 @@ fn ArticleContent(
             <hr/>
 
             <div class="article-actions">
-                <ArticleActions article toggle_favorite toggle_follow/>
+                <ArticleActions article/>
             </div>
-
         </div>
     }
 }
@@ -797,31 +815,15 @@ fn Article() -> impl IntoView {
         move || (slug(), user().map(|u| u.username)),
         |(slug, user)| get_article(slug, user),
     );
-    let toggle_follow = create_server_action::<ToggleFollow>();
-    let toggle_favorite = create_server_action::<ToggleFavorite>();
-    let versions = (toggle_follow.version(), toggle_favorite.version());
-    create_effect(move |_| {
-        if (versions.0() | versions.1()) != 0 {
-            article.refetch();
-        }
-    });
-
     view! {
         <div class="article-page">
-            <Transition fallback=|| {
-                "Loading article..."
-            }>
-                {move || {
-                    article()
-                        .and_then(|a| {
-                            _ = "FIXME: I give up on ErrorBoundary (and leptosfmt doesn't handle comments well)";
-                            a.ok()
-                        })
-                        .map(|article| {
-                            view! { <ArticleContent article toggle_favorite toggle_follow/> }
-                        })
-                }}
+            <Transition fallback=|| { "Loading article..." }>
+                <ErrorBoundary fallback=error_boundary_fallback>
+                    {move || {
+                        article().map(|res| res.map(|article| view! { <ArticleContent article/> }))
+                    }}
 
+                </ErrorBoundary>
             </Transition>
             <div class="row">
                 <Comments article_slug=slug/>
@@ -957,33 +959,28 @@ fn format_date(date: &str) -> String {
 #[component]
 fn ArticleMeta(#[prop(into)] article: Signal<Article>, children: Children) -> impl IntoView {
     let author_link = move || article.with(|a| profile_link(&a.author.username));
+    let image = Signal::derive(move || article.with(|a| a.author.image.clone()));
     view! {
         <div
             class="article-meta"
-            style="display: flex; flex-direction: row; justify-content: center"
+            style="display: flex; flex-direction: row; justify-content: center; gap: 5px"
         >
-            <A href=author_link>
-                {move || {
-                    article.with(|a| a.author.image.as_ref().map(|url| view! { <img src=url/> }))
-                }}
-
-            </A>
+            <Show when=move || image.with(Option::is_some)>
+                <A href=author_link>
+                    {move || image.with(|link| link.as_ref().map(|url| view! { <img src=url/> }))}
+                </A>
+            </Show>
             <div class="info">
                 <A href=author_link class="author">
                     {move || article.with(|a| a.author.username.clone())}
                 </A>
                 <span class="date">{move || article.with(|a| format_date(&a.created_at))}</span>
-                {move || {
-                    article
-                        .with(|a| {
-                            a.updated_at
-                                .as_ref()
-                                .map(|updated| {
-                                    view! { <span class="date">{format_date(updated)}</span> }
-                                })
-                        })
-                }}
+                <span class="date">
+                    {move || {
+                        article.with(|a| a.updated_at.as_ref().map(|updated| format_date(updated)))
+                    }}
 
+                </span>
             </div>
             {children()}
         </div>
