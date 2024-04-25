@@ -24,12 +24,15 @@ pub fn ProfileRoute() -> impl IntoView {
 }
 
 #[component]
-pub fn ProfileImg(
-    #[prop(into)] src: MaybeSignal<Option<String>>,
-    #[prop(optional)] class: &'static str,
-) -> impl IntoView {
-    // TODO: default for missing images
-    view! { <img src=move || src().unwrap_or_default() class=class/> }
+pub fn ProfileImg(src: Option<String>, #[prop(optional)] class: &'static str) -> impl IntoView {
+    // TODO: check if the view updates correctly
+    match src {
+        Some(url) if url.starts_with("https://") => {
+            view! { <img src=url class=class/> }.into_view()
+        }
+        Some(text) => text.into_view(),
+        None => "🙂".into_view(),
+    }
 }
 
 #[component]
@@ -54,10 +57,7 @@ pub fn Profile() -> impl IntoView {
                                                 let p = create_rw_signal(p);
                                                 view! {
                                                     <div class="col-xs-12 col-md-10 offset-md-1">
-                                                        <ProfileImg
-                                                            src=Signal::derive(move || p().image)
-                                                            class="user-img"
-                                                        />
+                                                        <ProfileImg src=p().image class="user-img"/>
                                                         <h4>{move || p().username}</h4>
                                                         <p>{move || p().bio}</p>
                                                         <Show
