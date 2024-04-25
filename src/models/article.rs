@@ -112,6 +112,99 @@ impl Article {
 
         Ok(article)
     }
+
+    fn slug_from_title(title: &str) -> String {
+        let mut slug: String = title
+            .chars()
+            .filter_map(|c| match c {
+                ' ' => Some('-'),
+                c if c.is_ascii_alphanumeric() => Some(c),
+                _ => None,
+            })
+            .skip_while(|c| *c == '-')
+            .collect();
+        slug.make_ascii_lowercase();
+        if slug.ends_with('-') {
+            slug.push('x');
+        }
+        slug
+    }
+
+    pub async fn create(
+        title: &str,
+        description: &str,
+        body: &str,
+        tags: &[String],
+    ) -> Result<String, sqlx::Error> {
+        let slug = Self::slug_from_title(title);
+
+        sqlx::query!(
+            "insert into article (slug, title, description, body) values (?, ?, ?, ?)",
+            slug,
+            title,
+            description,
+            body
+        )
+        .execute(crate::db::get())
+        .await?;
+
+        Self::add_tags(&slug, tags).await?;
+
+        Ok(slug)
+    }
+
+    pub async fn update(
+        slug: &str,
+        title: &str,
+        description: &str,
+        body: &str,
+        tags: &[String],
+    ) -> Result<(), sqlx::Error> {
+        let res = sqlx::query!(
+            "update article set title = ?, description = ?, body = ? where slug = ?",
+            title,
+            description,
+            body,
+            slug
+        )
+        .execute(crate::db::get())
+        .await?;
+
+        if res.rows_affected() != 1 {
+            return Err(sqlx::Error::RowNotFound);
+        }
+
+        Self::clear_tags(slug).await?;
+        Self::add_tags(slug, tags).await?;
+
+        Ok(())
+    }
+
+    pub async fn delete(slug: &str) -> Result<(), sqlx::Error> {
+        let res = sqlx::query!("delete from article where slug = ?", slug)
+            .execute(crate::db::get())
+            .await?;
+        if res.rows_affected() != 1 {
+            return Err(sqlx::Error::RowNotFound);
+        }
+        Ok(())
+    }
+
+    async fn add_tags(slug: &str, tags: &[String]) -> Result<(), sqlx::Error> {
+        for tag in tags {
+            sqlx::query!("insert into tag (article, tag) values (?, ?)", slug, tag)
+                .execute(crate::db::get())
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn clear_tags(slug: &str) -> Result<(), sqlx::Error> {
+        sqlx::query!("delete from tag where article = ?", slug)
+            .execute(crate::db::get())
+            .await?;
+        Ok(())
+    }
 }
 
 #[cfg(feature = "ssr")]
