@@ -65,37 +65,6 @@ macro_rules! feed_query {
 }
 
 #[cfg(feature = "ssr")]
-fn placeholder_article() -> Article {
-    Article {
-        slug: "how-to-build-webapps-that-scale".into(),
-        title: "How to build webapps that scale".into(),
-        description: "This is the description for the post.".into(),
-        body: "\
-# Header
-
-this is some content
-
-- list 1
-- list 2
-- list 3
-
-"
-        .into(),
-        tags: vec!["realworld".into(), "implementations".into()],
-        created_at: "January 20th".into(),
-        updated_at: None,
-        favorited: false,
-        favorites_count: 29,
-        author: Profile {
-            username: "eric-simons".into(),
-            bio: None,
-            image: Some("http://i.imgur.com/Qr71crq.jpg".into()),
-            following: false,
-        },
-    }
-}
-
-#[cfg(feature = "ssr")]
 impl Article {
     pub async fn get(slug: &str, for_user: Option<&str>) -> Result<Self, sqlx::Error> {
         let mut article = feed_query!(
@@ -106,13 +75,8 @@ impl Article {
             ",
             slug,
         )
-        .fetch_optional(crate::db::get())
+        .fetch_one(crate::db::get())
         .await?;
-
-        // TODO: remove placeholder and go back to `fetch_one()` above
-        let Some(mut article) = article else {
-            return Ok(placeholder_article());
-        };
 
         // FIXME: sqlx does not support subqueries (at least properly).
         // Thus we need to fill in some details here with extra queries.
