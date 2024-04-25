@@ -3,8 +3,6 @@ use leptos_router::*;
 
 use crate::{error_template::error_boundary_fallback, models::user::User};
 
-use super::profile::profile_link;
-
 type VoidAction<T> = Action<T, Result<(), ServerFnError>>;
 
 #[component]
@@ -114,6 +112,8 @@ async fn settings(
     bio: Option<String>,
     password: Option<String>,
 ) -> Result<(), ServerFnError> {
+    use super::profile::profile_link;
+
     let username = crate::auth::require_login()?;
     let link = profile_link(&username);
 
