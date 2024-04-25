@@ -56,13 +56,35 @@ pub fn App() -> impl IntoView {
             view! { <ErrorTemplate outside_errors/> }.into_view()
         }>
 
-            <header>
-                <Suspense>
-                    <Nav/>
-                </Suspense>
-            </header>
-            <main>
-                <Routes>
+            <Routes>
+                <Route
+                    path="/"
+                    // To force fetching current user on server
+                    ssr=SsrMode::PartiallyBlocked
+                    view=move || {
+                        view! {
+                            <header>
+                                <Nav/>
+                            </header>
+                            <main>
+                                <Outlet/>
+                            </main>
+                            <footer>
+                                <div class="container">
+                                    <a href="/" class="logo-font">
+                                        conduit
+                                    </a>
+                                    <span class="attribution">
+                                        "An interactive learning project from "
+                                        <a href="https://thinkster.io">Thinkster</a>
+                                        ". Code & design licensed under MIT."
+                                    </span>
+                                </div>
+                            </footer>
+                        }
+                    }
+                >
+
                     <Route path="/" view=HomePage>
                         <Route
                             path=""
@@ -128,9 +150,8 @@ pub fn App() -> impl IntoView {
                     // <Route path="/editor" view=Editor/>
                     // <Route path="/editor/:slug" view=Editor/>
                     <Route path="/editor/:slug?" view=Editor/>
-                </Routes>
-            </main>
-            <Footer/>
+                </Route>
+            </Routes>
         </Router>
     }
 }
@@ -154,67 +175,45 @@ fn Nav() -> impl IntoView {
     view! {
         <nav class="navbar navbar-light">
             <div class="container">
-                <a class="navbar-brand" href="/">
+                <A class="navbar-brand" href="/">
                     conduit
-                </a>
+                </A>
                 <ul class="nav navbar-nav pull-xs-right">
                     <NavLink href="/">Home</NavLink>
-                    <Show
-                        when=move || user.with(Option::is_none)
-                        fallback=move || {
-                            user()
-                                .map(|user| {
-                                    view! {
-                                        <NavLink href="/editor">
-                                            <i class="ion-compose"></i>
-                                            {NBSP}
-                                            New Article
-                                        </NavLink>
-                                        <NavLink href="/settings">
-                                            <i class="ion-gear-a"></i>
-                                            {NBSP}
-                                            Settings
-                                        </NavLink>
-                                        <NavLink href=profile_link(
-                                            &user.username,
-                                        )>
-                                            {user
-                                                .image
-                                                .map(|img| {
-                                                    view! { <img src=img class="user-pic"/> }
-                                                })}
-                                            {user.username}
-                                        </NavLink>
-                                    }
-                                })
-                        }
-                    >
+                    <Suspense>
+                        <Show
+                            when=move || user.with(Option::is_none)
+                            fallback=move || {
+                                user()
+                                    .map(|user| {
+                                        view! {
+                                            <NavLink href="/editor">
+                                                <i class="ion-compose"></i>
+                                                {NBSP}
+                                                New Article
+                                            </NavLink>
+                                            <NavLink href="/settings">
+                                                <i class="ion-gear-a"></i>
+                                                {NBSP}
+                                                Settings
+                                            </NavLink>
+                                            <NavLink href=profile_link(&user.username)>
+                                                <img src=user.image.unwrap_or_default() class="user-pic"/>
+                                                {user.username}
+                                            </NavLink>
+                                        }
+                                    })
+                            }
+                        >
 
-                        // Either logged out, or fetching current user info
-                        <NavLink href="/login">Sign in</NavLink>
-                        <NavLink href="/register">Sign up</NavLink>
-                    </Show>
+                            // Either logged out, or fetching current user info
+                            <NavLink href="/login">Sign in</NavLink>
+                            <NavLink href="/register">Sign up</NavLink>
+                        </Show>
+                    </Suspense>
                 </ul>
             </div>
         </nav>
-    }
-}
-
-#[component]
-fn Footer() -> impl IntoView {
-    view! {
-        <footer>
-            <div class="container">
-                <a href="/" class="logo-font">
-                    conduit
-                </a>
-                <span class="attribution">
-                    "An interactive learning project from "
-                    <a href="https://thinkster.io">Thinkster</a>
-                    ". Code & design licensed under MIT."
-                </span>
-            </div>
-        </footer>
     }
 }
 
