@@ -173,6 +173,7 @@ impl Article {
 
     // TODO: the validation errors passed in nested Results is bit weird, but will do for now
     pub async fn create(
+        author: &str,
         title: &str,
         description: &str,
         body: &str,
@@ -185,11 +186,12 @@ impl Article {
         let slug = Self::slug_from_title(title);
 
         sqlx::query!(
-            "insert into article (slug, title, description, body) values (?, ?, ?, ?)",
+            "insert into article (slug, title, description, body, author) values (?, ?, ?, ?, ?)",
             slug,
             title,
             description,
-            body
+            body,
+            author
         )
         .execute(crate::db::get())
         .await?;
@@ -200,6 +202,7 @@ impl Article {
     }
 
     pub async fn update(
+        author: &str,
         slug: &str,
         title: &str,
         description: &str,
@@ -211,11 +214,15 @@ impl Article {
         }
 
         let res = sqlx::query!(
-            "update article set title = ?, description = ?, body = ? where slug = ?",
+            "
+                update article set title = ?, description = ?, body = ?, updated_at = (date('now'))
+                where slug = ? and author = ?
+            ",
             title,
             description,
             body,
-            slug
+            slug,
+            author,
         )
         .execute(crate::db::get())
         .await?;
