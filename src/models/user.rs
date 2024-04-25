@@ -18,6 +18,32 @@ pub struct User {
 
 #[cfg(feature = "ssr")]
 impl User {
+    pub async fn profile(username: &str, for_user: Option<&str>) -> Result<Profile, sqlx::Error> {
+        let mut profile = sqlx::query!(
+            "select username, bio, image from user where username = ?",
+            username,
+        )
+        .map(|row| Profile {
+            username: row.username,
+            bio: row.bio,
+            image: row.image,
+            following: false,
+        })
+        .fetch_one(crate::db::get())
+        .await?;
+        if let Some(user) = for_user {
+            profile.following = sqlx::query_scalar!(
+                "select 1 from follow where follower = ? and followed = ?",
+                user,
+                username
+            )
+            .fetch_optional(crate::db::get())
+            .await?
+            .is_some();
+        }
+        Ok(profile)
+    }
+
     pub async fn get(username: &str) -> Result<Self, sqlx::Error> {
         sqlx::query_as!(
             Self,
