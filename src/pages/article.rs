@@ -55,14 +55,13 @@ pub fn Preview(#[prop(into)] article: RwSignal<Article>) -> impl IntoView {
 fn ArticleMeta(#[prop(into)] article: Signal<Article>, children: Children) -> impl IntoView {
     let author = Signal::derive(move || article.with(|a| a.author.clone()));
     let author_link = move || author.with(|a| profile_link(&a.username));
-    let image = author.with(|p| p.image.clone());
     view! {
         <div
             class="article-meta"
             style="display: flex; flex-direction: row; justify-content: center; gap: 5px"
         >
             <A href=author_link>
-                <ProfileImg src=image/>
+                {move || author.with(|p| view! { <ProfileImg src=p.image.clone()/> })}
             </A>
             <div class="info">
                 <A href=author_link class="author">
