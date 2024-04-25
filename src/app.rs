@@ -151,9 +151,6 @@ const NBSP: &str = "\u{A0}";
 #[component]
 fn Nav() -> impl IntoView {
     let user = use_current_user();
-    create_effect(move |_| {
-        logging::log!("{:?}", user());
-    });
     view! {
         <nav class="navbar navbar-light">
             <div class="container">
