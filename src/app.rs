@@ -241,8 +241,8 @@ fn TagLink(
 }
 
 #[component]
-fn TagList(
-    #[prop(into)] tags: MaybeSignal<Vec<String>>,
+fn TagList<T: Fn() -> Vec<String> + 'static>(
+    tags: T,
     #[prop(optional)] outline: bool,
 ) -> impl IntoView {
     view! {
@@ -254,10 +254,32 @@ fn TagList(
     }
 }
 
+#[server]
+async fn popular_tags() -> Result<Vec<String>, ServerFnError> {
+    sqlx::query_scalar!(
+        "
+        select tag from tag
+        group by tag
+        order by count(article) desc
+        limit 10
+        "
+    )
+    .fetch_all(crate::db::get())
+    .await
+    .map_err(|e| {
+        tracing::error!("failed to get popular tags: {:?}", e);
+        ServerFnError::ServerError("Could not get tags".into())
+    })
+}
+
 /// Renders the home page of your application.
 /// Expects a feed as nested route.
 #[component]
 fn HomePage() -> impl IntoView {
+    let tags = create_resource(
+        || (),
+        |_| async { popular_tags().await.unwrap_or_default() },
+    );
     view! {
         <div class="home-page">
             <div class="banner">
@@ -274,17 +296,9 @@ fn HomePage() -> impl IntoView {
                     <div class="col-md-3">
                         <div class="sidebar">
                             <p>Popular Tags</p>
-
-                            <TagList tags=vec![
-                                "programming".into(),
-                                "javascript".into(),
-                                "emberjs".into(),
-                                "angularjs".into(),
-                                "react".into(),
-                                "mean".into(),
-                                "node".into(),
-                                "rails".into(),
-                            ]/>
+                            <Suspense>
+                                <TagList tags=move || tags().unwrap_or_default()/>
+                            </Suspense>
                         </div>
                     </div>
                 </div>
@@ -792,10 +806,7 @@ fn ArticleContent(article: Article) -> impl IntoView {
                             target.innerHTML = DOMPurify.sanitize(marked.parse(pre.textContent));
                         "
                     </script>
-                    <TagList
-                        outline=true
-                        tags=Signal::derive(move || article.with(|a| a.tags.clone()))
-                    />
+                    <TagList outline=true tags=move || article.with(|a| a.tags.clone())/>
 
                 </div>
             </div>
@@ -991,10 +1002,7 @@ fn ArticlePreview(#[prop(into)] article: RwSignal<Article>) -> impl IntoView {
                 <h1>{move || article.with(|a| a.title.clone())}</h1>
                 <p>{move || article.with(|a| a.description.clone())}</p>
                 <span>Read more...</span>
-                <TagList
-                    outline=true
-                    tags=Signal::derive(move || article.with(|a| a.tags.clone()))
-                />
+                <TagList outline=true tags=move || article.with(|a| a.tags.clone())/>
             </A>
         </div>
     }
