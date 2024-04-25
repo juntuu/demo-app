@@ -50,14 +50,11 @@ pub fn App() -> impl IntoView {
         <Stylesheet id="leptos" href="/pkg/demo-app.css"/>
 
         // content for this welcome page
-        <Router
-            trailing_slash=TrailingSlash::Redirect
-            fallback=|| {
-                let mut outside_errors = Errors::default();
-                outside_errors.insert_with_default_key(AppError::NotFound);
-                view! { <ErrorTemplate outside_errors/> }.into_view()
-            }
-        >
+        <Router fallback=|| {
+            let mut outside_errors = Errors::default();
+            outside_errors.insert_with_default_key(AppError::NotFound);
+            view! { <ErrorTemplate outside_errors/> }.into_view()
+        }>
 
             <header>
                 <Suspense>
@@ -118,17 +115,19 @@ pub fn App() -> impl IntoView {
                     <Route path="/login" view=move || view! { <Login login=login/> }/>
                     <Route path="/register" view=move || view! { <Register register=register/> }/>
                     <Route path="/settings" view=move || view! { <Settings logout=logout/> }/>
-                    <Route path="/profile/:username" view=|| view! { <Profile/> }/>
-                    <Route
-                        path="/profile/:username/favorites"
-                        view=|| view! { <Profile favorites=true/> }
-                    />
+                    <Route path="/profile/:username" view=Profile>
+                        // TODO: this also fails with TrailingSlash::Redirect, so giving up on that
+                        // no the routing is bit more fiddly, but whatever
+                        // TODO: maybe add redirection logic on 404 to strip trailing /
+                        <Route path="/" view=|| view! { <ProfileFeed/> }/>
+                        <Route path="/favorites" view=|| view! { <ProfileFeed favorites=true/> }/>
+                    </Route>
                     // TODO: more usable without JS+Wasm
                     <Route path="/article/:slug" view=Article ssr=SsrMode::PartiallyBlocked/>
-                    // TODO: this fails with TrailingSlash::Redirect
-                    // <Route path="/editor/:slug?" view=Editor/>
-                    <Route path="/editor" view=Editor/>
-                    <Route path="/editor/:slug" view=Editor/>
+                    // TODO: the optional parameter fails with TrailingSlash::Redirect
+                    // <Route path="/editor" view=Editor/>
+                    // <Route path="/editor/:slug" view=Editor/>
+                    <Route path="/editor/:slug?" view=Editor/>
                 </Routes>
             </main>
             <Footer/>
@@ -138,32 +137,9 @@ pub fn App() -> impl IntoView {
 
 #[component]
 fn NavLink(#[prop(into)] href: MaybeSignal<String>, children: Children) -> impl IntoView {
-    let class = {
-        let path = use_location().pathname;
-        let href = href.clone();
-        move || {
-            href.with(|href| {
-                let active = href.is_empty()
-                    || path.with(|path| {
-                        if href == "/" {
-                            path == "/"
-                        } else {
-                            path.starts_with(href)
-                        }
-                    });
-                if active {
-                    // TODO: see if `aria-current` could be used for the `active` class,
-                    // since the <A> tag should set that for links.
-                    "nav-link active"
-                } else {
-                    "nav-link"
-                }
-            })
-        }
-    };
     view! {
         <li class="nav-item">
-            <A class=class href=href>
+            <A class="nav-link" active_class="active" href=href exact=true>
                 {children()}
             </A>
         </li>
@@ -429,8 +405,26 @@ struct UserParam {
 }
 
 #[component]
-fn Profile(#[prop(optional)] favorites: bool) -> impl IntoView {
+fn ProfileFeed(#[prop(optional)] favorites: bool) -> impl IntoView {
     let params = use_params::<UserParam>();
+    let username = move || params().expect("username in path").username;
+    let profile = move || profile_link(&username());
+    let fav = move || format!("{}/favorites", profile());
+    let kind = if favorites {
+        Signal::derive(move || FeedKind::Favorited(username()))
+    } else {
+        Signal::derive(move || FeedKind::By(username()))
+    };
+    view! {
+        <Feed kind=kind>
+            <NavLink href=Signal::derive(profile)>My Articles</NavLink>
+            <NavLink href=Signal::derive(fav)>Favorited Articles</NavLink>
+        </Feed>
+    }
+}
+
+#[component]
+fn Profile() -> impl IntoView {
     view! {
         <div class="profile-page">
             <div class="user-info">
@@ -456,34 +450,9 @@ fn Profile(#[prop(optional)] favorites: bool) -> impl IntoView {
                     </div>
                 </div>
             </div>
-
             <div class="container">
                 <div class="row">
-                    {move || {
-                        params()
-                            .map(|author| {
-                                view! {
-                                    // class="col-xs-12 col-md-10 offset-md-1"
-                                    <Feed kind=if favorites {
-                                        FeedKind::Favorited(author.username)
-                                    } else {
-                                        FeedKind::By(author.username)
-                                    }>
-                                        <NavLink href=if favorites {
-                                            ".."
-                                        } else {
-                                            ""
-                                        }>My Articles</NavLink>
-                                        <NavLink href=if favorites {
-                                            ""
-                                        } else {
-                                            "favorites"
-                                        }>Favorited Articles</NavLink>
-                                    </Feed>
-                                }
-                            })
-                    }}
-
+                    <Outlet/>
                 </div>
             </div>
         </div>
