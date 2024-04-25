@@ -8,7 +8,7 @@ pub struct Profile {
     pub following: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, Default)]
 pub struct User {
     pub username: String,
     pub email: String,
