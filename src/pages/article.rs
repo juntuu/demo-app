@@ -1,10 +1,7 @@
 use crate::{
-    app::{
-        profile_link, use_current_user, ArticleSlugParam, FavoriteButton, FollowButton, ProfileImg,
-        TagList, NBSP,
-    },
+    app::{use_current_user, ArticleSlugParam, FavoriteButton, FollowButton, TagList, NBSP},
     error_template::error_boundary_fallback,
-    models::{article::Article, comment::Comment},
+    models::{article::Article, comment::Comment}, pages::profile::{profile_link, ProfileImg},
 };
 use leptos::*;
 use leptos_router::*;

@@ -6,7 +6,10 @@ use crate::{
         article::{Article, Feed},
         user::{Profile, User},
     },
-    pages::{article, editor},
+    pages::{
+        article, editor,
+        profile::{profile_link, ProfileImg, ProfileRoute},
+    },
 };
 use leptos::*;
 use leptos_meta::{provide_meta_context, Stylesheet, Title};
@@ -137,13 +140,7 @@ pub fn App() -> impl IntoView {
                     <Route path="/login" view=move || view! { <Login login=login/> }/>
                     <Route path="/register" view=move || view! { <Register register=register/> }/>
                     <Route path="/settings" view=move || view! { <Settings logout=logout/> }/>
-                    <Route path="/profile/:username" view=Profile>
-                        // TODO: this also fails with TrailingSlash::Redirect, so giving up on that
-                        // no the routing is bit more fiddly, but whatever
-                        // TODO: maybe add redirection logic on 404 to strip trailing /
-                        <Route path="/" view=|| view! { <ProfileFeed/> }/>
-                        <Route path="/favorites" view=|| view! { <ProfileFeed favorites=true/> }/>
-                    </Route>
+                    <ProfileRoute/>
                     <Route path="/article/:slug" view=article::Article/>
                     <Route path="/editor" view=editor::New/>
                     <Route path="/editor/:slug" view=editor::Edit/>
@@ -154,7 +151,7 @@ pub fn App() -> impl IntoView {
 }
 
 #[component]
-fn NavLink(#[prop(into)] href: MaybeSignal<String>, children: Children) -> impl IntoView {
+pub fn NavLink(#[prop(into)] href: MaybeSignal<String>, children: Children) -> impl IntoView {
     view! {
         <li class="nav-item">
             <A class="nav-link" active_class="active" href=href exact=true>
@@ -404,121 +401,6 @@ fn Register(register: VoidAction<crate::auth::Register>) -> impl IntoView {
     }
 }
 
-#[derive(Params, PartialEq, Eq, Clone)]
-struct UserParam {
-    username: String,
-}
-
-#[component]
-fn ProfileFeed(#[prop(optional)] favorites: bool) -> impl IntoView {
-    let params = use_params::<UserParam>();
-    let username = move || params().expect("username in path").username;
-    let profile = move || profile_link(&username());
-    let fav = move || format!("{}/favorites", profile());
-    let kind = if favorites {
-        Signal::derive(move || FeedKind::Favorited(username()))
-    } else {
-        Signal::derive(move || FeedKind::By(username()))
-    };
-    view! {
-        <Feed kind=kind>
-            <NavLink href=Signal::derive(profile)>My Articles</NavLink>
-            <NavLink href=Signal::derive(fav)>Favorited Articles</NavLink>
-        </Feed>
-    }
-}
-
-#[server]
-async fn profile_data(username: String) -> Result<Profile, ServerFnError> {
-    let for_user = crate::auth::authenticated_username();
-    User::profile(&username, for_user.as_deref())
-        .await
-        .map_err(|e| {
-            tracing::error!("failed to get profile: {:?}", e);
-            ServerFnError::ServerError("Could not fetch profile data".into())
-        })
-}
-
-#[component]
-pub fn ProfileImg(
-    #[prop(into)] src: MaybeSignal<Option<String>>,
-    #[prop(optional)] class: &'static str,
-) -> impl IntoView {
-    // TODO: default for missing images
-    view! { <img src=move || src().unwrap_or_default() class=class/> }
-}
-
-#[component]
-fn Profile() -> impl IntoView {
-    let user = use_current_user();
-    let params = use_params::<UserParam>();
-    let username = move || params().expect("username in path").username;
-
-    let profile = create_blocking_resource(username, profile_data);
-
-    view! {
-        <div class="profile-page">
-            <div class="user-info">
-                <div class="container">
-                    <div class="row">
-                        <Transition fallback=|| "Loading profile...">
-                            <ErrorBoundary fallback=error_boundary_fallback>
-                                {move || {
-                                    profile()
-                                        .map(|p| {
-                                            p.map(|p| {
-                                                let p = create_rw_signal(p);
-                                                view! {
-                                                    <div class="col-xs-12 col-md-10 offset-md-1">
-                                                        <ProfileImg
-                                                            src=Signal::derive(move || p().image)
-                                                            class="user-img"
-                                                        />
-                                                        <h4>{move || p().username}</h4>
-                                                        <p>{move || p().bio}</p>
-                                                        <Show
-                                                            when=move || {
-                                                                user.with(|u| {
-                                                                    u.as_ref().is_some_and(|u| u.username == username())
-                                                                })
-                                                            }
-
-                                                            fallback=move || {
-                                                                view! {
-                                                                    <FollowButton class="action-btn" profile=p.split()/>
-                                                                }
-                                                            }
-                                                        >
-
-                                                            <A
-                                                                href="/settings"
-                                                                class="btn btn-sm btn-outline-secondary action-btn"
-                                                            >
-                                                                <i class="ion-gear-a"></i>
-                                                                {NBSP}
-                                                                Edit Profile Settings
-                                                            </A>
-                                                        </Show>
-                                                    </div>
-                                                }
-                                            })
-                                        })
-                                }}
-
-                            </ErrorBoundary>
-                        </Transition>
-                    </div>
-                </div>
-            </div>
-            <div class="container">
-                <div class="row">
-                    <Outlet/>
-                </div>
-            </div>
-        </div>
-    }
-}
-
 #[component]
 fn Settings(logout: VoidAction<crate::auth::Logout>) -> impl IntoView {
     view! {
@@ -757,7 +639,7 @@ pub fn FollowButton<R: Fn() -> Profile + 'static + Copy, W: Fn(Profile) + 'stati
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-enum FeedKind {
+pub enum FeedKind {
     Feed,
     Global,
     By(String),
@@ -784,12 +666,8 @@ async fn get_feed(kind: FeedKind) -> Result<Feed, ServerFnError> {
     })
 }
 
-pub fn profile_link(username: &str) -> String {
-    format!("/profile/{}", username)
-}
-
 #[component]
-fn Feed(#[prop(into)] kind: MaybeSignal<FeedKind>, children: Children) -> impl IntoView {
+pub fn Feed(#[prop(into)] kind: MaybeSignal<FeedKind>, children: Children) -> impl IntoView {
     let feed = create_resource(kind, get_feed);
     view! {
         <div class="col-md-9">
