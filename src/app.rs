@@ -651,9 +651,18 @@ async fn get_article(slug: String, user: Option<String>) -> Result<Article, Serv
 }
 
 #[component]
-fn FavoriteButton(article: RwSignal<Article>) -> impl IntoView {
+fn FavoriteButton(article: RwSignal<Article>, #[prop(optional)] compact: bool) -> impl IntoView {
+    let user = use_current_user();
     let toggle = create_server_action::<ToggleFavorite>();
+    let pending = toggle.pending();
     let result = toggle.value();
+    let disabled = move || {
+        with!(|user, article| {
+            user.as_ref()
+                .map_or(true, |user| user.username == article.author.username)
+                || pending()
+        })
+    };
     let favorited = move || article.with(|a| a.favorited);
 
     create_effect(move |_| {
@@ -671,12 +680,14 @@ fn FavoriteButton(article: RwSignal<Article>) -> impl IntoView {
         }
     });
 
+    let text = if compact { "" } else { "Favorite article" };
+
     view! {
         <ActionForm action=toggle>
-            <button type="submit" disabled=toggle.pending() class="btn btn-sm btn-outline-primary">
+            <button type="submit" disabled=disabled class="btn btn-sm btn-outline-primary">
                 <i class="ion-heart"></i>
                 {NBSP}
-                Favorite Article
+                {text}
                 <span class="counter">"(" {move || article.with(|a| a.favorites_count)} ")"</span>
             </button>
             <input type="hidden" name="article" value=move || article.with(|a| a.slug.clone())/>
@@ -734,29 +745,27 @@ fn ArticleActions(#[prop(into)] article: RwSignal<Article>) -> impl IntoView {
 
     view! {
         <ArticleMeta article=article>
-            <Suspense>
-                <Show
-                    when=is_author
-                    fallback=move || {
-                        view! {
-                            <Show when=is_logged_in>
-                                <FollowButton article=article/>
-                                <FavoriteButton article=article/>
-                            </Show>
-                        }
+            <Show
+                when=is_author
+                fallback=move || {
+                    view! {
+                        <Show when=is_logged_in>
+                            <FollowButton article=article/>
+                        </Show>
+                        <FavoriteButton article=article/>
                     }
-                >
+                }
+            >
 
-                    <button class="btn btn-sm btn-outline-secondary">
-                        <i class="ion-edit"></i>
-                        Edit Article
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger">
-                        <i class="ion-trash-a"></i>
-                        Delete Article
-                    </button>
-                </Show>
-            </Suspense>
+                <button class="btn btn-sm btn-outline-secondary">
+                    <i class="ion-edit"></i>
+                    Edit Article
+                </button>
+                <button class="btn btn-sm btn-outline-danger">
+                    <i class="ion-trash-a"></i>
+                    Delete Article
+                </button>
+            </Show>
         </ArticleMeta>
     }
 }
@@ -791,7 +800,7 @@ fn ArticleContent(article: Article) -> impl IntoView {
                     </script>
                     <TagList
                         outline=true
-                        tags=Signal::derive(move || { article.with(|a| a.tags.clone()) })
+                        tags=Signal::derive(move || article.with(|a| a.tags.clone()))
                     />
 
                 </div>
@@ -817,7 +826,7 @@ fn Article() -> impl IntoView {
     );
     view! {
         <div class="article-page">
-            <Transition fallback=|| { "Loading article..." }>
+            <Transition fallback=|| "Loading article...">
                 <ErrorBoundary fallback=error_boundary_fallback>
                     {move || {
                         article().map(|res| res.map(|article| view! { <ArticleContent article/> }))
@@ -842,7 +851,8 @@ async fn comments(slug: String) -> Result<Vec<Comment>, ServerFnError> {
 
 #[component]
 fn CommentCard(comment: Comment) -> impl IntoView {
-    let link = profile_link(&comment.author.username);
+    let author = comment.author.clone();
+    let link = profile_link(&author.username);
     view! {
         <div class="card">
             <div class="card-block">
@@ -850,17 +860,11 @@ fn CommentCard(comment: Comment) -> impl IntoView {
             </div>
             <div class="card-footer">
                 <A href=link.clone() class="comment-author">
-                    {comment
-                        .author
-                        .image
-                        .map(|url| {
-                            view! { <img src=url class="comment-author-img"/> }
-                        })}
-
+                    <img src=author.image.unwrap_or_default() class="comment-author-img"/>
                 </A>
                 {NBSP}
                 <A href=link class="comment-author">
-                    {&comment.author.username}
+                    {&author.username}
                 </A>
                 <span class="date-posted">{&comment.created_at}</span>
             </div>
@@ -888,33 +892,26 @@ fn Comments(#[prop(into)] article_slug: MaybeSignal<String>) -> impl IntoView {
             </form>
 
             // TODO: Maybe try `Transition`
-            <Suspense fallback=move || {
-                view! { <p>"Loading comments..."</p> }
-            }>
-                {move || {
-                    comments()
-                        .map(move |data| {
-                            view! {
-                                <ErrorBoundary fallback=error_boundary_fallback>
+            <Suspense fallback=move || "Loading comments...">
+                <ErrorBoundary fallback=error_boundary_fallback>
+                    {move || {
+                        comments()
+                            .map(|data| {
+                                data.map(|comments| {
+                                    view! {
+                                        <For
+                                            each=move || comments.clone()
+                                            key=|comment| comment.id
+                                            let:comment
+                                        >
+                                            <CommentCard comment=comment/>
+                                        </For>
+                                    }
+                                })
+                            })
+                    }}
 
-                                    {data
-                                        .map(|comments| {
-                                            view! {
-                                                <For
-                                                    each=move || comments.clone()
-                                                    key=|comment| comment.id
-                                                    let:comment
-                                                >
-                                                    <CommentCard comment=comment/>
-                                                </For>
-                                            }
-                                        })}
-
-                                </ErrorBoundary>
-                            }
-                        })
-                }}
-
+                </ErrorBoundary>
             </Suspense>
         </div>
     }
@@ -958,8 +955,9 @@ fn format_date(date: &str) -> String {
 
 #[component]
 fn ArticleMeta(#[prop(into)] article: Signal<Article>, children: Children) -> impl IntoView {
-    let author_link = move || article.with(|a| profile_link(&a.author.username));
-    let image = Signal::derive(move || article.with(|a| a.author.image.clone()));
+    let author = Signal::derive(move || article.with(|a| a.author.clone()));
+    let author_link = move || author.with(|a| profile_link(&a.username));
+    let image = Signal::derive(move || author.with(|p| p.image.clone()));
     view! {
         <div
             class="article-meta"
@@ -967,12 +965,12 @@ fn ArticleMeta(#[prop(into)] article: Signal<Article>, children: Children) -> im
         >
             <Show when=move || image.with(Option::is_some)>
                 <A href=author_link>
-                    {move || image.with(|link| link.as_ref().map(|url| view! { <img src=url/> }))}
+                    <img src=move || image().unwrap_or_default()/>
                 </A>
             </Show>
             <div class="info">
                 <A href=author_link class="author">
-                    {move || article.with(|a| a.author.username.clone())}
+                    {move || author.with(|a| a.username.clone())}
                 </A>
                 <span class="date">{move || article.with(|a| format_date(&a.created_at))}</span>
                 <span class="date">
@@ -988,15 +986,12 @@ fn ArticleMeta(#[prop(into)] article: Signal<Article>, children: Children) -> im
 }
 
 #[component]
-fn ArticlePreview(#[prop(into)] article: Signal<Article>) -> impl IntoView {
+fn ArticlePreview(#[prop(into)] article: RwSignal<Article>) -> impl IntoView {
     let article_link = move || article.with(|a| format!("/article/{}", a.slug));
     view! {
         <div class="article-preview">
             <ArticleMeta article=article>
-                <button class="btn btn-outline-primary btn-sm pull-xs-right">
-                    <i class="ion-heart"></i>
-                    {move || article.with(|a| a.favorites_count)}
-                </button>
+                <FavoriteButton article=article compact=true/>
             </ArticleMeta>
             <A href=article_link class="preview-link">
                 <h1>{move || article.with(|a| a.title.clone())}</h1>
@@ -1021,33 +1016,26 @@ fn Feed(#[prop(into)] kind: MaybeSignal<FeedKind>, children: Children) -> impl I
             </div>
 
             // TODO: Maybe try `Transition`
-            <Suspense fallback=|| {
-                view! { <p>"Loading feed..."</p> }
-            }>
-                {move || {
-                    feed()
-                        .map(move |data| {
-                            view! {
-                                <ErrorBoundary fallback=error_boundary_fallback>
+            <Suspense fallback=|| "Loading feed...">
+                <ErrorBoundary fallback=error_boundary_fallback>
+                    {move || {
+                        feed()
+                            .map(|data| {
+                                data.map(|articles| {
+                                    view! {
+                                        <For
+                                            each=move || articles.articles.clone()
+                                            key=|article| article.slug.clone()
+                                            let:article
+                                        >
+                                            <ArticlePreview article=create_rw_signal(article)/>
+                                        </For>
+                                    }
+                                })
+                            })
+                    }}
 
-                                    {data
-                                        .map(|articles| {
-                                            view! {
-                                                <For
-                                                    each=move || articles.articles.clone()
-                                                    key=|article| article.slug.clone()
-                                                    let:article
-                                                >
-                                                    <ArticlePreview article=create_rw_signal(article)/>
-                                                </For>
-                                            }
-                                        })}
-
-                                </ErrorBoundary>
-                            }
-                        })
-                }}
-
+                </ErrorBoundary>
             </Suspense>
 
             // TODO
