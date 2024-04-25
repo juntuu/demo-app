@@ -53,7 +53,7 @@ pub fn App() -> impl IntoView {
         <Router fallback=|| {
             let mut outside_errors = Errors::default();
             outside_errors.insert_with_default_key(AppError::NotFound);
-            view! { <ErrorTemplate outside_errors/> }.into_view()
+            view! { <ErrorTemplate outside_errors/> }
         }>
 
             <Routes>
@@ -85,7 +85,7 @@ pub fn App() -> impl IntoView {
                     }
                 >
 
-                    <Route path="/" view=HomePage>
+                    <Route path="" view=HomePage>
                         <Route
                             path=""
                             view=move || {
@@ -269,9 +269,7 @@ fn HomePage() -> impl IntoView {
 
             <div class="container page">
                 <div class="row">
-                    <Suspense fallback=|| "Loading feed...">
-                        <Outlet/>
-                    </Suspense>
+                    <Outlet/>
 
                     <div class="col-md-3">
                         <div class="sidebar">
