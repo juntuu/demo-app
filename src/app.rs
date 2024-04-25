@@ -762,6 +762,26 @@ fn FollowButton<R: Fn() -> Profile + 'static + Copy, W: Fn(Profile) + 'static>(
     }
 }
 
+#[server]
+async fn delete_article(slug: String) -> Result<(), ServerFnError> {
+    let author = crate::auth::require_login()?;
+    sqlx::query!(
+        "delete from article where slug = ? and author = ?",
+        slug,
+        author
+    )
+    .execute(crate::db::get())
+    .await
+    .map(|_| {
+        // TODO: could go back to previous page
+        leptos_axum::redirect("/");
+    })
+    .map_err(|e| {
+        tracing::error!("failed to delete article: {:?}", e);
+        ServerFnError::ServerError("Failed to delete article".into())
+    })
+}
+
 #[component]
 fn ArticleActions(#[prop(into)] article: RwSignal<Article>) -> impl IntoView {
     let user = use_current_user();
@@ -771,6 +791,7 @@ fn ArticleActions(#[prop(into)] article: RwSignal<Article>) -> impl IntoView {
         user.with(|user| user.as_ref().is_some_and(|user| user.username == author()))
     });
     let profile = create_slice(article, |a| a.author.clone(), |a, new| a.author = new);
+    let delete = create_server_action::<DeleteArticle>();
 
     view! {
         <ArticleMeta article=article>
@@ -786,14 +807,30 @@ fn ArticleActions(#[prop(into)] article: RwSignal<Article>) -> impl IntoView {
                 }
             >
 
-                <button class="btn btn-sm btn-outline-secondary">
-                    <i class="ion-edit"></i>
-                    Edit Article
-                </button>
-                <button class="btn btn-sm btn-outline-danger">
-                    <i class="ion-trash-a"></i>
-                    Delete Article
-                </button>
+                <div>
+                    <A
+                        href=move || article.with(|a| format!("/editor/{}", a.slug))
+                        class="btn btn-sm btn-outline-secondary"
+                    >
+                        <i class="ion-edit"></i>
+                        Edit Article
+                    </A>
+                </div>
+                <ActionForm action=delete>
+                    <input
+                        type="hidden"
+                        name="slug"
+                        value=move || article.with(|a| a.slug.clone())
+                    />
+                    <button
+                        type="submit"
+                        disabled=delete.pending()
+                        class="btn btn-sm btn-outline-danger"
+                    >
+                        <i class="ion-trash-a"></i>
+                        Delete Article
+                    </button>
+                </ActionForm>
             </Show>
         </ArticleMeta>
     }
@@ -818,17 +855,16 @@ fn ArticleContent(article: Article) -> impl IntoView {
                         <pre>{move || article.with(|a| a.body.clone())}</pre>
                         <div></div>
                     </div>
-                    <script type="module">
-                        "
-                            import { marked } from 'https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js';
-                            import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.1.0/+esm'
-                            const [pre, target] = document.getElementById('content').children;
-                            pre.style.display = 'none';
-                            target.innerHTML = DOMPurify.sanitize(marked.parse(pre.textContent));
-                        "
-                    </script>
+                    // <script type="module">
+                    // "
+                    // import { marked } from 'https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js';
+                    // import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.1.0/+esm'
+                    // const [pre, target] = document.getElementById('content').children;
+                    // pre.style.display = 'none';
+                    // target.innerHTML = DOMPurify.sanitize(marked.parse(pre.textContent));
+                    // "
+                    // </script>
                     <TagList outline=true tags=move || article.with(|a| a.tags.clone())/>
-
                 </div>
             </div>
 
