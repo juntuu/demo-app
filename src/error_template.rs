@@ -38,18 +38,21 @@ pub fn ErrorTemplate(
     let errors = errors.get_untracked();
 
     // Downcast lets us take a type that implements `std::error::Error`
-    let errors: Vec<AppError> = errors
+    let mut errors: Vec<AppError> = errors
         .into_iter()
         .filter_map(|(_k, v)| v.downcast_ref::<AppError>().cloned())
         .collect();
+    if errors.is_empty() {
+        // FIXME: find out what's actually wrong
+        errors.push(AppError::NotFound);
+    }
     println!("Errors: {errors:#?}");
 
     // Only the response code for the first error is actually sent from the server
     // this may be customized by the specific application
     #[cfg(feature = "ssr")]
     {
-        use leptos_axum::ResponseOptions;
-        let response = use_context::<ResponseOptions>();
+        let response = use_context::<leptos_axum::ResponseOptions>();
         if let Some(response) = response {
             response.set_status(errors[0].status_code());
         }
