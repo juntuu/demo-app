@@ -105,7 +105,7 @@ pub fn require_login() -> Result<String, ServerFnError> {
 }
 
 #[cfg(feature = "ssr")]
-fn authenticated_username() -> Option<String> {
+pub fn authenticated_username() -> Option<String> {
     use_context::<http::request::Parts>().and_then(|req| server::get_username(&req.headers))
 }
 

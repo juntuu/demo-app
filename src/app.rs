@@ -5,7 +5,7 @@ use crate::{
     models::{
         article::{Article, Feed},
         comment::Comment,
-        user::User,
+        user::{Profile, User},
     },
 };
 use leptos::*;
@@ -431,30 +431,76 @@ fn ProfileFeed(#[prop(optional)] favorites: bool) -> impl IntoView {
     }
 }
 
+#[server]
+async fn profile_data(username: String) -> Result<Profile, ServerFnError> {
+    let for_user = crate::auth::authenticated_username();
+    User::profile(&username, for_user.as_deref())
+        .await
+        .map_err(|e| {
+            tracing::error!("failed to get profile: {:?}", e);
+            ServerFnError::ServerError("Could not fetch profile data".into())
+        })
+}
+
 #[component]
 fn Profile() -> impl IntoView {
+    let user = use_current_user();
+    let params = use_params::<UserParam>();
+    let username = move || params().expect("username in path").username;
+
+    let profile = create_blocking_resource(username, profile_data);
+
     view! {
         <div class="profile-page">
             <div class="user-info">
                 <div class="container">
                     <div class="row">
-                        <div class="col-xs-12 col-md-10 offset-md-1">
-                            <img src="http://i.imgur.com/Qr71crq.jpg" class="user-img"/>
-                            <h4>Eric Simons</h4>
-                            <p>
-                                "Cofounder @GoThinkster, lived in Aol's HQ for a few months, kinda looks like Peeta from the Hunger Games"
-                            </p>
-                            <button class="btn btn-sm btn-outline-secondary action-btn">
-                                <i class="ion-plus-round"></i>
-                                {NBSP}
-                                Follow Eric Simons
-                            </button>
-                            <button class="btn btn-sm btn-outline-secondary action-btn">
-                                <i class="ion-gear-a"></i>
-                                {NBSP}
-                                Edit Profile Settings
-                            </button>
-                        </div>
+                        <Transition fallback=|| "Loading profile...">
+                            <ErrorBoundary fallback=error_boundary_fallback>
+                                {move || {
+                                    profile()
+                                        .map(|p| {
+                                            p
+                                                .map(|p| {
+                                                    let p = create_rw_signal(p);
+                                                    view! {
+                                                        <div class="col-xs-12 col-md-10 offset-md-1">
+                                                            <img src="http://i.imgur.com/Qr71crq.jpg" class="user-img"/>
+                                                            <h4>{move || p().username}</h4>
+                                                            <p>{move || p().bio}</p>
+                                                            <Show
+                                                                when=move || {
+                                                                    user.with(|u| u.as_ref().is_some_and(|u| u.username == username()))
+                                                                }
+                                                                fallback=move || {
+                                                                    view! {
+                                                                        <button class="btn btn-sm btn-outline-secondary action-btn">
+                                                                            <i class="ion-plus-round"></i>
+                                                                            {NBSP}
+                                                                            Follow
+                                                                            {move || p().username}
+                                                                        </button>
+                                                                    }
+                                                                }
+                                                            >
+
+                                                                <A
+                                                                    href="/settings"
+                                                                    class="btn btn-sm btn-outline-secondary action-btn"
+                                                                >
+                                                                    <i class="ion-gear-a"></i>
+                                                                    {NBSP}
+                                                                    Edit Profile Settings
+                                                                </A>
+                                                            </Show>
+                                                        </div>
+                                                    }
+                                                })
+                                        })
+                                }}
+
+                            </ErrorBoundary>
+                        </Transition>
                     </div>
                 </div>
             </div>
@@ -725,7 +771,7 @@ fn FavoriteButton(article: RwSignal<Article>, #[prop(optional)] compact: bool) -
 fn FollowButton(article: RwSignal<Article>) -> impl IntoView {
     let toggle = create_server_action::<ToggleFollow>();
     let result = toggle.value();
-    let author = Signal::derive(move || article.with(|a| a.author.username.clone()));
+    let author = move || article.with(|a| a.author.username.clone());
 
     create_effect(move |_| {
         let success = result.with(|res| matches!(res, Some(Ok(true))));
@@ -752,7 +798,7 @@ fn FollowButton(article: RwSignal<Article>) -> impl IntoView {
             <input
                 type="hidden"
                 name="current"
-                value=move || { article.with(|a| a.author.following).to_string() }
+                value=move || article.with(|a| a.author.following).to_string()
             />
 
         </ActionForm>
