@@ -3,7 +3,7 @@
 use crate::{
     error_template::{error_boundary_fallback, AppError, ErrorTemplate},
     models::{
-        article::{Article, Feed},
+        article::Feed,
         user::{Profile, User},
     },
     pages::{
@@ -329,96 +329,9 @@ async fn toggle_follow(user: String, current: bool) -> Result<bool, ServerFnErro
     })
 }
 
-#[server]
-async fn toggle_favorite(article: String, current: bool) -> Result<bool, ServerFnError> {
-    let logged_in = crate::auth::require_login()?;
-    if sqlx::query_scalar!(
-        "select author = ? from article where slug = ?",
-        logged_in,
-        article
-    )
-    .fetch_optional(crate::db::get())
-    .await?
-    .unwrap_or(1)
-        != 0
-    {
-        // Can't favorite own article
-        return Ok(false);
-    }
-    if current {
-        sqlx::query!(
-            "delete from favorite where user = ? and article = ?",
-            logged_in,
-            article
-        )
-    } else {
-        sqlx::query!(
-            "insert or ignore into favorite (user, article) values (?, ?)",
-            logged_in,
-            article
-        )
-    }
-    .execute(crate::db::get())
-    .await
-    .map(|res| res.rows_affected() == 1)
-    .map_err(|e| {
-        tracing::error!("failed to toggle follow: {:?}", e);
-        ServerFnError::ServerError("database error".into())
-    })
-}
-
 #[derive(Params, PartialEq, Eq, Clone)]
 pub(crate) struct ArticleSlugParam {
     pub slug: String,
-}
-
-#[component]
-pub fn FavoriteButton(
-    article: RwSignal<Article>,
-    #[prop(optional)] compact: bool,
-) -> impl IntoView {
-    let user = use_current_user();
-    let toggle = create_server_action::<ToggleFavorite>();
-    let pending = toggle.pending();
-    let result = toggle.value();
-    let disabled = move || {
-        with!(|user, article| {
-            user.as_ref()
-                .map_or(true, |user| user.username == article.author.username)
-                || pending()
-        })
-    };
-    let favorited = move || article.with(|a| a.favorited);
-
-    create_effect(move |_| {
-        let success = result.with(|res| matches!(res, Some(Ok(true))));
-        if success {
-            article.update(|a| {
-                if a.favorited {
-                    a.favorited = false;
-                    a.favorites_count -= 1;
-                } else {
-                    a.favorited = true;
-                    a.favorites_count += 1;
-                }
-            });
-        }
-    });
-
-    let text = if compact { "" } else { "Favorite article" };
-
-    view! {
-        <ActionForm action=toggle>
-            <button type="submit" disabled=disabled class="btn btn-sm btn-outline-primary">
-                <i class="ion-heart"></i>
-                {NBSP}
-                {text}
-                <span class="counter">"(" {move || article.with(|a| a.favorites_count)} ")"</span>
-            </button>
-            <input type="hidden" name="article" value=move || article.with(|a| a.slug.clone())/>
-            <input type="hidden" name="current" value=move || favorited().to_string()/>
-        </ActionForm>
-    }
 }
 
 // Bit annoying to work around different ways signals can be paired and split.

@@ -1,7 +1,7 @@
 use leptos::*;
 use leptos_router::*;
 
-use crate::{error_template::error_boundary_fallback, models::user::User};
+use crate::app::use_current_user;
 
 type VoidAction<T> = Action<T, Result<(), ServerFnError>>;
 
@@ -117,7 +117,7 @@ async fn settings(
     let username = crate::auth::require_login()?;
     let link = profile_link(&username);
 
-    User {
+    crate::models::user::User {
         username,
         email,
         bio,
@@ -132,20 +132,18 @@ async fn settings(
     })
 }
 
-#[server]
-async fn get_user() -> Result<User, ServerFnError> {
-    let user = crate::auth::require_login()?;
-    crate::models::user::User::get(&user).await.map_err(|e| {
-        tracing::error!("failed to get user: {:?}", e);
-        ServerFnError::ServerError("Could not get user".into())
-    })
-}
-
 // TODO: propagate changes to other part of app e.g. profile image
 #[component]
 pub fn Settings(logout: VoidAction<crate::auth::Logout>) -> impl IntoView {
+    // Hack to signal about update
+    let update = logout.version();
     let settings = create_server_action::<Settings>();
-    let user = create_blocking_resource(|| (), |_| get_user());
+    create_effect(move |_| {
+        if settings.pending()() {
+            update.set(0);
+        }
+    });
+    let user = use_current_user();
     view! {
         <div class="settings-page">
             <div class="container page">
@@ -153,64 +151,60 @@ pub fn Settings(logout: VoidAction<crate::auth::Logout>) -> impl IntoView {
                     <div class="col-md-6 offset-md-3 col-xs-12">
                         <h1 class="text-xs-center">Your Settings</h1>
                         <Suspense>
-                            <ErrorBoundary fallback=error_boundary_fallback>
-                                {move || {
-                                    user()
-                                        .map(|u| {
-                                            u.map(|user| {
-                                                view! {
-                                                    <ActionForm action=settings>
-                                                        <fieldset>
-                                                            <fieldset class="form-group">
-                                                                <input
-                                                                    class="form-control"
-                                                                    type="text"
-                                                                    placeholder="URL of profile picture"
-                                                                    name="image"
-                                                                    value=user.image
-                                                                />
-                                                            </fieldset>
-                                                            <fieldset class="form-group">
-                                                                <textarea
-                                                                    class="form-control form-control-lg"
-                                                                    rows="8"
-                                                                    placeholder="Short bio about you"
-                                                                    name="bio"
-                                                                    value=user.bio
-                                                                ></textarea>
-                                                            </fieldset>
-                                                            <fieldset class="form-group">
-                                                                <input
-                                                                    class="form-control form-control-lg"
-                                                                    type="text"
-                                                                    placeholder="Email"
-                                                                    name="email"
-                                                                    value=user.email
-                                                                />
-                                                            </fieldset>
-                                                            <fieldset class="form-group">
-                                                                <input
-                                                                    class="form-control form-control-lg"
-                                                                    type="password"
-                                                                    placeholder="New Password"
-                                                                    name="password"
-                                                                />
-                                                            </fieldset>
-                                                            <button
-                                                                type="submit"
-                                                                disabled=settings.pending()
-                                                                class="btn btn-lg btn-primary pull-xs-right"
-                                                            >
-                                                                Update Settings
-                                                            </button>
-                                                        </fieldset>
-                                                    </ActionForm>
-                                                }
-                                            })
-                                        })
-                                }}
+                            {move || {
+                                user()
+                                    .map(|user| {
+                                        view! {
+                                            <ActionForm action=settings>
+                                                <fieldset>
+                                                    <fieldset class="form-group">
+                                                        <input
+                                                            class="form-control"
+                                                            type="text"
+                                                            placeholder="URL of profile picture"
+                                                            name="image"
+                                                            value=user.image
+                                                        />
+                                                    </fieldset>
+                                                    <fieldset class="form-group">
+                                                        <textarea
+                                                            class="form-control form-control-lg"
+                                                            rows="8"
+                                                            placeholder="Short bio about you"
+                                                            name="bio"
+                                                            value=user.bio
+                                                        ></textarea>
+                                                    </fieldset>
+                                                    <fieldset class="form-group">
+                                                        <input
+                                                            class="form-control form-control-lg"
+                                                            type="text"
+                                                            placeholder="Email"
+                                                            name="email"
+                                                            value=user.email
+                                                        />
+                                                    </fieldset>
+                                                    <fieldset class="form-group">
+                                                        <input
+                                                            class="form-control form-control-lg"
+                                                            type="password"
+                                                            placeholder="New Password"
+                                                            name="password"
+                                                        />
+                                                    </fieldset>
+                                                    <button
+                                                        type="submit"
+                                                        disabled=settings.pending()
+                                                        class="btn btn-lg btn-primary pull-xs-right"
+                                                    >
+                                                        Update Settings
+                                                    </button>
+                                                </fieldset>
+                                            </ActionForm>
+                                        }
+                                    })
+                            }}
 
-                            </ErrorBoundary>
                         </Suspense>
                         <hr/>
                         <ActionForm action=logout>
