@@ -1,5 +1,10 @@
 #![allow(clippy::empty_docs)]
 
+// TODO:
+// - some validation for user details
+// - pagination for feeds
+// - state propagation between views
+
 use crate::{
     error_template::{error_boundary_fallback, AppError, ErrorTemplate},
     models::{
@@ -173,6 +178,32 @@ pub(crate) const NBSP: &str = "\u{A0}";
 #[component]
 fn Nav() -> impl IntoView {
     let user = use_current_user();
+    let links = move || {
+        if let Some(user) = user() {
+            view! {
+                <NavLink href="/editor">
+                    <i class="ion-compose"></i>
+                    {NBSP}
+                    New Article
+                </NavLink>
+                <NavLink href="/settings">
+                    <i class="ion-gear-a"></i>
+                    {NBSP}
+                    Settings
+                </NavLink>
+                <NavLink href=profile_link(&user.username)>
+                    <ProfileImg src=user.image class="user-pic"/>
+                    {user.username}
+                </NavLink>
+            }
+        } else {
+            view! {
+                <NavLink href="/login">Sign in</NavLink>
+                <NavLink href="/register">Sign up</NavLink>
+            }
+        }
+    };
+
     view! {
         <nav class="navbar navbar-light">
             <div class="container">
@@ -181,37 +212,7 @@ fn Nav() -> impl IntoView {
                 </A>
                 <ul class="nav navbar-nav pull-xs-right">
                     <NavLink href="/">Home</NavLink>
-                    <Suspense>
-                        <Show
-                            when=move || user.with(Option::is_none)
-                            fallback=move || {
-                                user()
-                                    .map(|user| {
-                                        view! {
-                                            <NavLink href="/editor">
-                                                <i class="ion-compose"></i>
-                                                {NBSP}
-                                                New Article
-                                            </NavLink>
-                                            <NavLink href="/settings">
-                                                <i class="ion-gear-a"></i>
-                                                {NBSP}
-                                                Settings
-                                            </NavLink>
-                                            <NavLink href=profile_link(&user.username)>
-                                                <ProfileImg src=user.image class="user-pic"/>
-                                                {user.username}
-                                            </NavLink>
-                                        }
-                                    })
-                            }
-                        >
-
-                            // Either logged out, or fetching current user info
-                            <NavLink href="/login">Sign in</NavLink>
-                            <NavLink href="/register">Sign up</NavLink>
-                        </Show>
-                    </Suspense>
+                    <Suspense>{links}</Suspense>
                 </ul>
             </div>
         </nav>
@@ -414,33 +415,30 @@ async fn get_feed(kind: FeedKind) -> Result<Feed, ServerFnError> {
 #[component]
 pub fn Feed(#[prop(into)] kind: MaybeSignal<FeedKind>, children: Children) -> impl IntoView {
     let feed = create_blocking_resource(kind, get_feed);
+    let previews = move || {
+        feed().map(|data| {
+            data.map(|articles| {
+                view! {
+                    <For
+                        each=move || articles.articles.clone()
+                        key=|article| article.slug.clone()
+                        let:article
+                    >
+                        <ArticlePreview article=create_rw_signal(article)/>
+                    </For>
+                }
+            })
+        })
+    };
+
     view! {
         <div class="col-md-9">
             <div class="feed-toggle">
                 <ul class="nav nav-pills outline-active">{children()}</ul>
             </div>
 
-            // TODO: Maybe try `Transition`
             <Suspense fallback=|| "Loading feed...">
-                <ErrorBoundary fallback=error_boundary_fallback>
-                    {move || {
-                        feed()
-                            .map(|data| {
-                                data.map(|articles| {
-                                    view! {
-                                        <For
-                                            each=move || articles.articles.clone()
-                                            key=|article| article.slug.clone()
-                                            let:article
-                                        >
-                                            <ArticlePreview article=create_rw_signal(article)/>
-                                        </For>
-                                    }
-                                })
-                            })
-                    }}
-
-                </ErrorBoundary>
+                <ErrorBoundary fallback=error_boundary_fallback>{previews}</ErrorBoundary>
             </Suspense>
 
             // TODO

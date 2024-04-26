@@ -43,6 +43,39 @@ pub fn Profile() -> impl IntoView {
 
     let profile = create_blocking_resource(username, profile_data);
 
+    let profile_details = move || {
+        profile().map(|p| {
+            p.map(|p| {
+                let p = create_rw_signal(p);
+                view! {
+                    <div class="col-xs-12 col-md-10 offset-md-1">
+                        <ProfileImg src=p().image class="user-img"/>
+                        <h4>{move || p().username}</h4>
+                        <p>{move || p().bio}</p>
+                        <Show
+                            when=move || {
+                                user.with(|u| {
+                                    u.as_ref().is_some_and(|u| u.username == username())
+                                })
+                            }
+
+                            fallback=move || {
+                                view! { <FollowButton class="action-btn" profile=p.split()/> }
+                            }
+                        >
+
+                            <A href="/settings" class="btn btn-sm btn-outline-secondary action-btn">
+                                <i class="ion-gear-a"></i>
+                                {NBSP}
+                                Edit Profile Settings
+                            </A>
+                        </Show>
+                    </div>
+                }
+            })
+        })
+    };
+
     view! {
         <div class="profile-page">
             <div class="user-info">
@@ -50,45 +83,7 @@ pub fn Profile() -> impl IntoView {
                     <div class="row">
                         <Transition fallback=|| "Loading profile...">
                             <ErrorBoundary fallback=error_boundary_fallback>
-                                {move || {
-                                    profile()
-                                        .map(|p| {
-                                            p.map(|p| {
-                                                let p = create_rw_signal(p);
-                                                view! {
-                                                    <div class="col-xs-12 col-md-10 offset-md-1">
-                                                        <ProfileImg src=p().image class="user-img"/>
-                                                        <h4>{move || p().username}</h4>
-                                                        <p>{move || p().bio}</p>
-                                                        <Show
-                                                            when=move || {
-                                                                user.with(|u| {
-                                                                    u.as_ref().is_some_and(|u| u.username == username())
-                                                                })
-                                                            }
-
-                                                            fallback=move || {
-                                                                view! {
-                                                                    <FollowButton class="action-btn" profile=p.split()/>
-                                                                }
-                                                            }
-                                                        >
-
-                                                            <A
-                                                                href="/settings"
-                                                                class="btn btn-sm btn-outline-secondary action-btn"
-                                                            >
-                                                                <i class="ion-gear-a"></i>
-                                                                {NBSP}
-                                                                Edit Profile Settings
-                                                            </A>
-                                                        </Show>
-                                                    </div>
-                                                }
-                                            })
-                                        })
-                                }}
-
+                                {profile_details}
                             </ErrorBoundary>
                         </Transition>
                     </div>

@@ -19,6 +19,10 @@ async fn get_article_for_editing(slug: String) -> Result<ArticleEditFields, Serv
     })
 }
 
+// NOTE: the macro does some magic that doesn't understand plain typedef name,
+// so the outer `Result` is not inlined here.
+type CreateOrUpdateResult = Result<String, Vec<String>>;
+
 #[server]
 async fn create_or_update_post(
     slug: Option<String>,
@@ -26,7 +30,7 @@ async fn create_or_update_post(
     about: String,
     body: String,
     tags: String,
-) -> Result<Result<String, Vec<String>>, ServerFnError> {
+) -> Result<CreateOrUpdateResult, ServerFnError> {
     let author = crate::auth::require_login()?;
     let tags = tags.to_lowercase();
     let tags: Vec<_> = tags.split_whitespace().collect();
@@ -58,9 +62,75 @@ async fn create_or_update_post(
 }
 
 #[component]
+fn EditorForm(
+    #[prop(into)] button_label: String,
+    #[prop(optional)] slug: Signal<String>,
+    #[prop(optional)] fields: Option<ArticleEditFields>,
+    action: Action<CreateOrUpdatePost, Result<CreateOrUpdateResult, ServerFnError>>,
+) -> impl IntoView {
+    view! {
+        <ActionForm action=action>
+            <input type="hidden" name="slug" value=slug/>
+            <fieldset>
+                <fieldset class="form-group">
+                    <input
+                        type="text"
+                        class="form-control form-control-lg"
+                        placeholder="Article Title"
+                        name="title"
+                        value=fields.as_ref().map(|a| a.title.clone())
+                    />
+                </fieldset>
+                <fieldset class="form-group">
+                    <input
+                        type="text"
+                        class="form-control"
+                        placeholder="What's this article about?"
+                        name="about"
+                        value=fields.as_ref().map(|a| a.description.clone())
+                    />
+                </fieldset>
+                <fieldset class="form-group">
+                    <textarea
+                        class="form-control"
+                        rows="8"
+                        placeholder="Write your article (in markdown)"
+                        name="body"
+                        value=fields.as_ref().map(|a| a.body.clone())
+                    ></textarea>
+                </fieldset>
+                <fieldset class="form-group">
+                    <input
+                        type="text"
+                        class="form-control"
+                        placeholder="Enter tags"
+                        name="tags"
+                        value=fields.as_ref().map(|a| a.tags.join(" "))
+                    />
+                    // TODO: client side fancy stuff for tags
+                    <div class="tag-list">
+                        <span class="tag-default tag-pill">
+                            <i class="ion-close-round"></i>
+                            tag
+                        </span>
+                    </div>
+                </fieldset>
+                <button
+                    disabled=action.pending()
+                    class="btn btn-lg pull-xs-right btn-primary"
+                    type="submit"
+                >
+                    {button_label}
+                </button>
+            </fieldset>
+        </ActionForm>
+    }
+}
+
+#[component]
 pub fn Edit() -> impl IntoView {
     let params = use_params::<ArticleSlugParam>();
-    let slug = move || params().expect("slug").slug;
+    let slug = Signal::derive(move || params().expect("slug").slug);
     let post = create_server_action::<CreateOrUpdatePost>();
     let to_edit = create_blocking_resource(slug, get_article_for_editing);
     let result = post.value();
@@ -70,6 +140,13 @@ pub fn Edit() -> impl IntoView {
         } else {
             Vec::new()
         }
+    };
+    let edit_form = move || {
+        to_edit().map(|a| {
+            a.map(|a| {
+                view! { <EditorForm button_label="Save" slug=slug fields=a action=post/> }
+            })
+        })
     };
     view! {
         <div class="editor-page">
@@ -84,71 +161,7 @@ pub fn Edit() -> impl IntoView {
 
                         <Suspense fallback=|| "Loading...">
                             <ErrorBoundary fallback=error_boundary_fallback>
-                                {move || {
-                                    to_edit()
-                                        .map(|a| {
-                                            a.map(|a| {
-                                                view! {
-                                                    <ActionForm action=post>
-                                                        <input type="hidden" name="slug" value=slug/>
-                                                        <fieldset>
-                                                            <fieldset class="form-group">
-                                                                <input
-                                                                    type="text"
-                                                                    class="form-control form-control-lg"
-                                                                    placeholder="Article Title"
-                                                                    name="title"
-                                                                    value=a.title
-                                                                />
-                                                            </fieldset>
-                                                            <fieldset class="form-group">
-                                                                <input
-                                                                    type="text"
-                                                                    class="form-control"
-                                                                    placeholder="What's this article about?"
-                                                                    name="about"
-                                                                    value=a.description
-                                                                />
-                                                            </fieldset>
-                                                            <fieldset class="form-group">
-                                                                <textarea
-                                                                    class="form-control"
-                                                                    rows="8"
-                                                                    placeholder="Write your article (in markdown)"
-                                                                    name="body"
-                                                                    value=a.body
-                                                                ></textarea>
-                                                            </fieldset>
-                                                            <fieldset class="form-group">
-                                                                <input
-                                                                    type="text"
-                                                                    class="form-control"
-                                                                    placeholder="Enter tags"
-                                                                    name="tags"
-                                                                    value=a.tags.join(" ")
-                                                                />
-                                                                // TODO: client side fancy stuff for tags
-                                                                <div class="tag-list">
-                                                                    <span class="tag-default tag-pill">
-                                                                        <i class="ion-close-round"></i>
-                                                                        tag
-                                                                    </span>
-                                                                </div>
-                                                            </fieldset>
-                                                            <button
-                                                                disabled=post.pending()
-                                                                class="btn btn-lg pull-xs-right btn-primary"
-                                                                type="submit"
-                                                            >
-                                                                Save
-                                                            </button>
-                                                        </fieldset>
-                                                    </ActionForm>
-                                                }
-                                            })
-                                        })
-                                }}
-
+                                {edit_form}
                             </ErrorBoundary>
                         </Suspense>
                     </div>
@@ -180,52 +193,7 @@ pub fn New() -> impl IntoView {
                             </For>
                         </ul>
 
-                        <ActionForm action=post>
-                            <fieldset>
-                                <fieldset class="form-group">
-                                    <input
-                                        type="text"
-                                        class="form-control form-control-lg"
-                                        placeholder="Article Title"
-                                        name="title"
-                                    />
-                                </fieldset>
-                                <fieldset class="form-group">
-                                    <input
-                                        type="text"
-                                        class="form-control"
-                                        placeholder="What's this article about?"
-                                        name="about"
-                                    />
-                                </fieldset>
-                                <fieldset class="form-group">
-                                    <textarea
-                                        class="form-control"
-                                        rows="8"
-                                        placeholder="Write your article (in markdown)"
-                                        name="body"
-                                    ></textarea>
-                                </fieldset>
-                                <fieldset class="form-group">
-                                    <input
-                                        type="text"
-                                        class="form-control"
-                                        placeholder="Enter tags"
-                                        name="tags"
-                                    />
-                                    // TODO: client side fancy stuff for tags
-                                    <div class="tag-list">
-                                        <span class="tag-default tag-pill">
-                                            <i class="ion-close-round"></i>
-                                            tag
-                                        </span>
-                                    </div>
-                                </fieldset>
-                                <button class="btn btn-lg pull-xs-right btn-primary" type="submit">
-                                    Publish Article
-                                </button>
-                            </fieldset>
-                        </ActionForm>
+                        <EditorForm button_label="Publish article" action=post/>
                     </div>
                 </div>
             </div>

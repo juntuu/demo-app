@@ -316,6 +316,19 @@ fn CommentCard(comment: Comment) -> impl IntoView {
 #[component]
 fn Comments(#[prop(into)] article_slug: MaybeSignal<String>) -> impl IntoView {
     let comments = create_resource(article_slug, comments);
+    // TODO: maybe "subscribe" for new comments and update real time
+    let comment_list = move || {
+        comments().map(|data| {
+            data.map(|comments| {
+                view! {
+                    <For each=move || comments.clone() key=|comment| comment.id let:comment>
+                        <CommentCard comment=comment/>
+                    </For>
+                }
+            })
+        })
+    };
+
     view! {
         <div class="col-xs-12 col-md-8 offset-md-2">
             <form class="card comment-form">
@@ -332,27 +345,8 @@ fn Comments(#[prop(into)] article_slug: MaybeSignal<String>) -> impl IntoView {
                 </div>
             </form>
 
-            // TODO: Maybe try `Transition`
             <Suspense fallback=move || "Loading comments...">
-                <ErrorBoundary fallback=error_boundary_fallback>
-                    {move || {
-                        comments()
-                            .map(|data| {
-                                data.map(|comments| {
-                                    view! {
-                                        <For
-                                            each=move || comments.clone()
-                                            key=|comment| comment.id
-                                            let:comment
-                                        >
-                                            <CommentCard comment=comment/>
-                                        </For>
-                                    }
-                                })
-                            })
-                    }}
-
-                </ErrorBoundary>
+                <ErrorBoundary fallback=error_boundary_fallback>{comment_list}</ErrorBoundary>
             </Suspense>
         </div>
     }
