@@ -94,9 +94,7 @@ pub fn App() -> impl IntoView {
                             view=move || {
                                 view! {
                                     <Feed kind=FeedKind::Global>
-                                        <Show when=move || maybe_user.with(Option::is_some)>
-                                            <NavLink href="/feed">Your Feed</NavLink>
-                                        </Show>
+                                        <UserFeedLink href="/feed"/>
                                         <NavLink href="">Global Feed</NavLink>
                                     </Feed>
                                 }
@@ -108,9 +106,7 @@ pub fn App() -> impl IntoView {
                             view=move || {
                                 view! {
                                     <Feed kind=FeedKind::Feed>
-                                        <Show when=move || maybe_user.with(Option::is_some)>
-                                            <NavLink href="">Your Feed</NavLink>
-                                        </Show>
+                                        <UserFeedLink href=""/>
                                         <NavLink href="/">Global Feed</NavLink>
                                     </Feed>
                                 }
@@ -126,9 +122,7 @@ pub fn App() -> impl IntoView {
                                 };
                                 view! {
                                     <Feed kind=Signal::derive(move || FeedKind::Tag(tag()))>
-                                        <Show when=move || maybe_user.with(Option::is_some)>
-                                            <NavLink href="/feed">Your Feed</NavLink>
-                                        </Show>
+                                        <UserFeedLink href="/feed"/>
                                         <NavLink href="/">Global Feed</NavLink>
                                         <NavLink href=""># {tag}</NavLink>
                                     </Feed>
@@ -147,6 +141,19 @@ pub fn App() -> impl IntoView {
                 </Route>
             </Routes>
         </Router>
+    }
+}
+
+#[component]
+pub fn UserFeedLink(href: &'static str) -> impl IntoView {
+    let user = use_current_user();
+    view! {
+        <Suspense>
+            {move || {
+                user.with(|u| u.as_ref().map(|_| view! { <NavLink href=href>Your Feed</NavLink> }))
+            }}
+
+        </Suspense>
     }
 }
 

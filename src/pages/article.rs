@@ -18,14 +18,14 @@ pub fn Article() -> impl IntoView {
     );
     view! {
         <div class="article-page">
-            <Transition fallback=|| "Loading article...">
+            <Suspense fallback=|| "Loading article...">
                 <ErrorBoundary fallback=error_boundary_fallback>
                     {move || {
                         article().map(|res| res.map(|article| view! { <ArticleContent article/> }))
                     }}
 
                 </ErrorBoundary>
-            </Transition>
+            </Suspense>
             <div class="row">
                 <Comments article_slug=slug/>
             </div>
