@@ -34,7 +34,7 @@ pub fn Article() -> impl IntoView {
 }
 
 #[component]
-pub fn Preview(#[prop(into)] article: RwSignal<Article>) -> impl IntoView {
+pub fn ArticlePreview(#[prop(into)] article: RwSignal<Article>) -> impl IntoView {
     let article_link = move || article.with(|a| format!("/article/{}", a.slug));
     view! {
         <div class="article-preview">

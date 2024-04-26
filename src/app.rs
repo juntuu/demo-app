@@ -7,7 +7,8 @@ use crate::{
         user::{Profile, User},
     },
     pages::{
-        article, editor,
+        article::{Article, ArticlePreview},
+        editor,
         profile::{profile_link, ProfileImg, ProfileRoute},
         user::{Login, Register, Settings},
     },
@@ -140,7 +141,7 @@ pub fn App() -> impl IntoView {
                     <Route path="/register" view=move || view! { <Register register=register/> }/>
                     <Route path="/settings" view=move || view! { <Settings logout=logout/> }/>
                     <ProfileRoute/>
-                    <Route path="/article/:slug" view=article::Article/>
+                    <Route path="/article/:slug" view=Article/>
                     <Route path="/editor" view=editor::New/>
                     <Route path="/editor/:slug" view=editor::Edit/>
                 </Route>
@@ -418,9 +419,7 @@ pub fn Feed(#[prop(into)] kind: MaybeSignal<FeedKind>, children: Children) -> im
                                             key=|article| article.slug.clone()
                                             let:article
                                         >
-                                            <article::Preview article=create_rw_signal(
-                                                article,
-                                            )></article::Preview>
+                                            <ArticlePreview article=create_rw_signal(article)/>
                                         </For>
                                     }
                                 })
