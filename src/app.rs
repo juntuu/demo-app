@@ -211,37 +211,23 @@ fn Nav() -> impl IntoView {
 }
 
 #[component]
-fn TagLink(
-    #[prop(into)] tag: MaybeSignal<String>,
+pub fn TagList<T: Fn() -> Vec<String> + 'static>(
+    tags: T,
     #[prop(optional)] outline: bool,
 ) -> impl IntoView {
-    let href = {
-        let tag = tag.clone();
-        move || format!("/tag/{}", tag())
-    };
     let class = if outline {
         "tag-pill tag-default tag-outline"
     } else {
         "tag-pill tag-default"
     };
     view! {
-        <li>
-            <A href=href class=class>
-                {tag}
-            </A>
-        </li>
-    }
-}
-
-#[component]
-pub fn TagList<T: Fn() -> Vec<String> + 'static>(
-    tags: T,
-    #[prop(optional)] outline: bool,
-) -> impl IntoView {
-    view! {
         <ul class="tag-list">
             <For each=tags key=|tag| tag.clone() let:tag>
-                <TagLink tag=tag outline=outline/>
+                <li>
+                    <A href=format!("/tag/{}", &tag) class=class>
+                        {tag}
+                    </A>
+                </li>
             </For>
         </ul>
     }
@@ -289,7 +275,7 @@ fn HomePage() -> impl IntoView {
                     <div class="col-md-3">
                         <div class="sidebar">
                             <p>Popular Tags</p>
-                            <Suspense>
+                            <Suspense fallback=|| "Loading...">
                                 <TagList tags=move || tags().unwrap_or_default()/>
                             </Suspense>
                         </div>
