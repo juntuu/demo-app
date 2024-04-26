@@ -413,7 +413,7 @@ async fn get_feed(kind: FeedKind) -> Result<Feed, ServerFnError> {
 
 #[component]
 pub fn Feed(#[prop(into)] kind: MaybeSignal<FeedKind>, children: Children) -> impl IntoView {
-    let feed = create_resource(kind, get_feed);
+    let feed = create_blocking_resource(kind, get_feed);
     view! {
         <div class="col-md-9">
             <div class="feed-toggle">
