@@ -382,10 +382,17 @@ pub enum FeedKind {
 async fn get_feed(kind: FeedKind) -> Result<Feed, ServerFnError> {
     use crate::models::article::FeedOptions;
 
-    let user = "noone"; // TODO: current user
-    let options = FeedOptions::default();
+    let options = FeedOptions {
+        user: crate::auth::authenticated_username(),
+        ..Default::default()
+    };
     match kind {
-        FeedKind::Feed => Feed::feed(user, &options).await,
+        FeedKind::Feed => {
+            let Some(user) = &options.user else {
+                return Err(ServerFnError::ServerError("Not logged in".into()));
+            };
+            Feed::feed(user, &options).await
+        }
         FeedKind::Global => Feed::global(&options).await,
         FeedKind::By(user) => Feed::by(&user, &options).await,
         FeedKind::Favorited(user) => Feed::favorited(&user, &options).await,
