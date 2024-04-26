@@ -48,8 +48,10 @@ pub async fn logout() -> Result<(), ServerFnError> {
         .expect("response options")
         .insert_header(
             http::header::SET_COOKIE,
-            http::HeaderValue::from_str("session=; path=/; SameSite=Strict")
-                .expect("set cookie header"),
+            http::HeaderValue::from_str(
+                "session=; path=/; SameSite=Strict; Expires=Thu, 01 Jan 1970 00:00:00 GMT",
+            )
+            .expect("set cookie header"),
         );
     leptos_axum::redirect("/login");
     Ok(())
