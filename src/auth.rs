@@ -44,15 +44,8 @@ pub async fn login(username: String, password: String) -> Result<(), ServerFnErr
 
 #[server]
 pub async fn logout() -> Result<(), ServerFnError> {
-    use_context::<leptos_axum::ResponseOptions>()
-        .expect("response options")
-        .insert_header(
-            http::header::SET_COOKIE,
-            http::HeaderValue::from_str(
-                "session=; path=/; SameSite=Strict; Expires=Thu, 01 Jan 1970 00:00:00 GMT",
-            )
-            .expect("set cookie header"),
-        );
+    let res = expect_context::<leptos_axum::ResponseOptions>();
+    server::clear_session_cookie(&res);
     leptos_axum::redirect("/login");
     Ok(())
 }
@@ -117,12 +110,13 @@ pub mod server {
 
     use axum::{
         body::Body,
-        http::{header, Request, StatusCode},
+        http::{header, HeaderValue, Request, StatusCode},
         middleware::Next,
         response::Response,
     };
 
     use jsonwebtoken::{decode, DecodingKey, Validation};
+    use leptos_axum::ResponseOptions;
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Serialize, Deserialize)]
@@ -132,17 +126,42 @@ pub mod server {
         pub exp: usize,
     }
 
+    fn set_session_cookie(response_options: &ResponseOptions, token: &str) {
+        response_options.insert_header(
+            header::SET_COOKIE,
+            HeaderValue::from_str(&format!(
+                "session={token}; path=/; HttpOnly; SameSite=Strict"
+            ))
+            .expect("set cookie header"),
+        );
+    }
+
+    pub(crate) fn clear_session_cookie(response_options: &ResponseOptions) {
+        response_options.insert_header(
+            header::SET_COOKIE,
+            HeaderValue::from_str(
+                // See "to remove cookie": https://www.rfc-editor.org/rfc/rfc6265#section-3.1
+                "session=; path=/; SameSite=Strict; Expires=Thu, 01 Jan 1970 00:00:00 GMT",
+            )
+            .expect("set cookie header"),
+        );
+    }
+
+    fn redirect(path: &str) -> Response {
+        Response::builder()
+            .status(StatusCode::FOUND)
+            .header(header::LOCATION, path)
+            .body(Body::empty())
+            .expect("redirection response with headers")
+    }
+
     pub async fn auth_middleware(req: Request<Body>, next: Next) -> Response {
         let path = req.uri().path();
 
         if let Some(username) = get_username(req.headers()) {
             if User::get(&username).await.is_ok() {
                 if path.starts_with("/login") || path.starts_with("/register") {
-                    return Response::builder()
-                        .status(StatusCode::FOUND)
-                        .header(header::LOCATION, "/")
-                        .body(Body::empty())
-                        .expect("response with headers");
+                    return redirect("/");
                 }
                 return next.run(req).await;
             } else {
@@ -153,38 +172,29 @@ pub mod server {
         // Not authenticated
         if path.starts_with("/settings") || path.starts_with("/editor") {
             // but should be
-            Response::builder()
-                .status(StatusCode::FOUND)
-                .header(header::LOCATION, "/login")
-                .header(header::SET_COOKIE, "session")
-                .body(Body::empty())
-                .expect("response with headers")
+            redirect("/login")
         } else {
             next.run(req).await
         }
     }
 
-    pub(crate) fn decode_token(
-        token: &str,
-    ) -> Result<jsonwebtoken::TokenData<TokenClaims>, jsonwebtoken::errors::Error> {
+    pub(crate) fn get_username(headers: &http::HeaderMap) -> Option<String> {
+        let header = headers.get(header::COOKIE)?.to_str().ok()?;
+        let token = header
+            .split(';')
+            .find_map(|x| x.trim_start().strip_prefix("session="))?;
         let secret = std::env!("JWT_SECRET");
         decode::<TokenClaims>(
             token,
             &DecodingKey::from_secret(secret.as_bytes()),
             &Validation::default(),
         )
-    }
-
-    pub(crate) fn get_username(headers: &http::HeaderMap) -> Option<String> {
-        let header = headers.get(http::header::COOKIE)?.to_str().ok()?;
-        let token = header
-            .split(';')
-            .find_map(|x| x.trim_start().strip_prefix("session="))?;
-        decode_token(token).ok().map(|jwt| jwt.claims.sub)
+        .ok()
+        .map(|jwt| jwt.claims.sub)
     }
 
     pub async fn set_username(username: String) -> Option<()> {
-        let res = use_context::<leptos_axum::ResponseOptions>()?;
+        let res = use_context::<ResponseOptions>()?;
         let claims = TokenClaims {
             sub: username,
             exp: (chrono::Utc::now() + chrono::TimeDelta::days(30)).timestamp() as usize,
@@ -196,13 +206,7 @@ pub mod server {
             &jsonwebtoken::EncodingKey::from_secret(secret.as_bytes()),
         )
         .expect("encode token");
-        res.insert_header(
-            http::header::SET_COOKIE,
-            http::HeaderValue::from_str(&format!(
-                "session={token}; path=/; HttpOnly; SameSite=Strict"
-            ))
-            .expect("set cookie header"),
-        );
+        set_session_cookie(&res, &token);
         Some(())
     }
 }
