@@ -8,8 +8,11 @@ async fn main() {
     use leptos::{get_configuration, logging};
     use leptos_axum::{generate_route_list, LeptosRoutes};
     use tower_http::{compression::CompressionLayer, trace::TraceLayer};
+    use tracing_subscriber::EnvFilter;
 
-    tracing_subscriber::fmt().init();
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
 
     demo_app::db::init().await;
 
