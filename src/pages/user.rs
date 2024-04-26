@@ -124,12 +124,9 @@ async fn settings(
         image,
     }
     .update(password.as_deref())
-    .await
-    .map(|_| leptos_axum::redirect(&link))
-    .map_err(|e| {
-        tracing::error!("failed to update user settings: {:?}", e);
-        ServerFnError::ServerError("Could not update settings".into())
-    })
+    .await?;
+    leptos_axum::redirect(&link);
+    Ok(())
 }
 
 // TODO: propagate changes to other part of app e.g. profile image

@@ -20,26 +20,17 @@ pub async fn register(
 
 #[server]
 pub async fn login(username: String, password: String) -> Result<(), ServerFnError> {
-    match sqlx::query_scalar!("select password from user where username = ?", username)
+    if sqlx::query_scalar!("select password from user where username = ?", username)
         .fetch_optional(crate::db::get())
-        .await
+        .await?
+        .is_some_and(|hash| crate::auth::password::verify(&password, &hash))
     {
-        Err(e) => {
-            tracing::error!("failed to get user from database for login: {:?}", e);
-            Err(ServerFnError::ServerError("Unexpected error".into()))
-        }
-        Ok(Some(hash)) if crate::auth::password::verify(&password, &hash) => {
-            server::set_username(username).await;
-            leptos_axum::redirect("/");
-            Ok(())
-        }
-        _ => {
-            use_context::<leptos_axum::ResponseOptions>()
-                .expect("response options")
-                .set_status(http::StatusCode::FORBIDDEN);
-            Ok(())
-        }
+        server::set_username(username).await;
+        leptos_axum::redirect("/");
+    } else {
+        expect_context::<leptos_axum::ResponseOptions>().set_status(http::StatusCode::FORBIDDEN);
     }
+    Ok(())
 }
 
 #[server]

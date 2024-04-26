@@ -172,10 +172,7 @@ fn ArticleMeta(#[prop(into)] article: Signal<Article>, children: Children) -> im
 #[server]
 async fn get_article(slug: String, user: Option<String>) -> Result<Article, ServerFnError> {
     tracing::info!("fetching article: {}", slug);
-    Article::get(&slug, user.as_deref()).await.map_err(|e| {
-        tracing::error!("could not get article: {:?}", e);
-        ServerFnError::ServerError("Failed to get article".into())
-    })
+    Ok(Article::get(&slug, user.as_deref()).await?)
 }
 
 #[server]
@@ -187,15 +184,10 @@ async fn delete_article(slug: String) -> Result<(), ServerFnError> {
         author
     )
     .execute(crate::db::get())
-    .await
-    .map(|_| {
-        // TODO: could go back to previous page
-        leptos_axum::redirect("/");
-    })
-    .map_err(|e| {
-        tracing::error!("failed to delete article: {:?}", e);
-        ServerFnError::ServerError("Failed to delete article".into())
-    })
+    .await?;
+    // TODO: could go back to previous page
+    leptos_axum::redirect("/");
+    Ok(())
 }
 
 #[component]
@@ -295,10 +287,7 @@ fn ArticleContent(article: Article) -> impl IntoView {
 
 #[server]
 async fn comments(slug: String) -> Result<Vec<Comment>, ServerFnError> {
-    Comment::for_article(&slug).await.map_err(|e| {
-        tracing::error!("failed to fetch comments: {:?}", e);
-        ServerFnError::ServerError("Failed to fetch comments".into())
-    })
+    Ok(Comment::for_article(&slug).await?)
 }
 
 #[component]
