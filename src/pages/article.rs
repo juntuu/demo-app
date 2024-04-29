@@ -311,9 +311,43 @@ fn CommentCard(comment: Comment) -> impl IntoView {
     }
 }
 
+#[server]
+async fn post_comment(article: String, comment: String) -> Result<i64, ServerFnError> {
+    let user = crate::auth::require_login()?;
+    Ok(Comment::create(&article, &user, &comment).await?)
+}
+
 #[component]
-fn Comments(#[prop(into)] article_slug: MaybeSignal<String>) -> impl IntoView {
-    let comments = create_resource(article_slug, comments);
+fn Comments(#[prop(into)] article_slug: Signal<String>) -> impl IntoView {
+    let post_comment = create_server_action::<PostComment>();
+    let version = post_comment.version();
+    let post_result = post_comment.value();
+
+    let comments = create_resource(
+        move || (article_slug(), version()),
+        |(slug, _)| comments(slug),
+    );
+
+    let comment_ref: NodeRef<html::Textarea> = create_node_ref();
+
+    create_effect(move |_| {
+        match post_result() {
+            Some(Ok(_)) => {
+                // Clear the comment field after succesfull post
+                comment_ref()
+                    .expect("<textarea> should be mounted")
+                    .set_value("");
+            }
+            Some(Err(e)) => {
+                // Or show error after failed one (this doesn't work without js)
+                comment_ref()
+                    .expect("<textarea> should be mounted")
+                    .set_custom_validity(&e.to_string());
+            }
+            _ => {}
+        }
+    });
+
     // TODO: maybe "subscribe" for new comments and update real time
     let comment_list = move || {
         comments().map(|data| {
@@ -329,20 +363,24 @@ fn Comments(#[prop(into)] article_slug: MaybeSignal<String>) -> impl IntoView {
 
     view! {
         <div class="col-xs-12 col-md-8 offset-md-2">
-            <form class="card comment-form">
+            <ActionForm class="card comment-form" action=post_comment>
+                <input type="hidden" name="article" value=article_slug/>
                 <div class="card-block">
                     <textarea
+                        node_ref=comment_ref
                         class="form-control"
                         placeholder="Write a comment..."
                         rows="3"
+                        name="comment"
                     ></textarea>
                 </div>
                 <div class="card-footer">
                     <ProfileImg src=None class="comment-author-img"/>
-                    <button class="btn btn-sm btn-primary">Post Comment</button>
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        Post Comment
+                    </button>
                 </div>
-            </form>
-
+            </ActionForm>
             <Suspense fallback=move || "Loading comments...">
                 <ErrorBoundary fallback=error_boundary_fallback>{comment_list}</ErrorBoundary>
             </Suspense>
