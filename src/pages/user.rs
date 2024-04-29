@@ -6,7 +6,27 @@ use crate::app::use_current_user;
 type VoidAction<T> = Action<T, Result<(), ServerFnError>>;
 
 #[component]
+fn ErrorList(#[prop(into)] errors: Signal<Vec<String>>) -> impl IntoView {
+    view! {
+        <Show when=move || !errors.with(Vec::is_empty)>
+            <ul class="error-messages">
+                {move || errors().into_iter().map(|e| view! { <li>{e}</li> }).collect_view()}
+            </ul>
+        </Show>
+    }
+}
+
+#[component]
 pub fn Login(login: VoidAction<crate::auth::Login>) -> impl IntoView {
+    let errors = create_rw_signal(Vec::new());
+    create_effect(move |_| {
+        if let Some(Err(_)) = login.value()() {
+            if errors.with_untracked(Vec::is_empty) {
+                errors.update(|e| e.push("Incorrect username or password.".into()));
+            }
+        }
+    });
+
     view! {
         <div class="auth-page">
             <div class="container page">
@@ -16,15 +36,7 @@ pub fn Login(login: VoidAction<crate::auth::Login>) -> impl IntoView {
                         <p class="text-xs-center">
                             <a href="/register">Need an account?</a>
                         </p>
-
-                        <Show when=move || {
-                            login.value().with(|val| val.as_ref().is_some_and(|x| x.is_err()))
-                        }>
-                            <ul class="error-messages">
-                                <li>Incorrect username or password.</li>
-                            </ul>
-                        </Show>
-
+                        <ErrorList errors=errors/>
                         <ActionForm action=login>
                             <fieldset class="form-group">
                                 <input
@@ -55,6 +67,20 @@ pub fn Login(login: VoidAction<crate::auth::Login>) -> impl IntoView {
 
 #[component]
 pub fn Register(register: VoidAction<crate::auth::Register>) -> impl IntoView {
+    let errors = create_rw_signal(Vec::new());
+    create_effect(move |_| {
+        if let Some(Err(err)) = register.value()() {
+            let msg = if let ServerFnError::ServerError(msg) = err {
+                msg
+            } else {
+                "Something went wrong".to_string()
+            };
+            if errors.with_untracked(|e| !e.contains(&msg)) {
+                errors.update(|e| e.push(msg));
+            }
+        }
+    });
+
     view! {
         <div class="auth-page">
             <div class="container page">
@@ -64,11 +90,7 @@ pub fn Register(register: VoidAction<crate::auth::Register>) -> impl IntoView {
                         <p class="text-xs-center">
                             <a href="/login">Have an account?</a>
                         </p>
-
-                        <ul class="error-messages">
-                            <li>That email is already taken</li>
-                        </ul>
-
+                        <ErrorList errors=errors/>
                         <ActionForm action=register>
                             <fieldset class="form-group">
                                 <input

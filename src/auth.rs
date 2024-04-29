@@ -10,7 +10,14 @@ pub async fn register(
 ) -> Result<(), ServerFnError> {
     if let Err(e) = User::create(&username, &email, &password).await {
         tracing::error!("error registering user: {:?}", e);
-        Err(ServerFnError::ServerError("Could not register".into()))
+        let mut err = "Could not register".to_string();
+        if let sqlx::Error::Database(db) = e {
+            let msg = db.message();
+            if let Some(field) = msg.strip_prefix("UNIQUE constraint failed: user.") {
+                err = format!("Already taken: {}", field);
+            }
+        }
+        Err(ServerFnError::ServerError(err))
     } else {
         server::set_username(username).await;
         leptos_axum::redirect("/");
