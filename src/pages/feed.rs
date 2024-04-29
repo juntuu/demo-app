@@ -83,9 +83,9 @@ fn Pagination(#[prop(into)] page: Signal<Page>, count: u32) -> impl IntoView {
                 };
                 view! {
                     <li class=class>
-                        <a class="page-link" href=format!("?offset={}&limit={}", start, limit)>
+                        <A class="page-link" href=format!("?offset={}&limit={}", start, limit)>
                             {page + 1}
-                        </a>
+                        </A>
                     </li>
                 }
             })
