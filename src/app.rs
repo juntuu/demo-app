@@ -2,7 +2,6 @@
 
 // TODO:
 // - some validation for user details
-// - state propagation between views
 
 use crate::{
     error_template::{AppError, ErrorTemplate},

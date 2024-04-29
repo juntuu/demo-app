@@ -132,14 +132,20 @@ async fn settings(
 // TODO: propagate changes to other part of app e.g. profile image
 #[component]
 pub fn Settings(logout: VoidAction<crate::auth::Logout>) -> impl IntoView {
-    // Hack to signal about update
-    let update = logout.version();
     let settings = create_server_action::<Settings>();
-    create_effect(move |_| {
-        if settings.pending()() {
-            update.set(0);
-        }
-    });
+
+    // Hack to signal about update
+    {
+        let update = logout.version();
+        let result = settings.value();
+        create_effect(move |_| {
+            if let Some(Ok(_)) = result() {
+                // Only notify after successful action
+                update.update(|n| *n += 1);
+            }
+        });
+    }
+
     let user = use_current_user();
     let settings_form = move || {
         user().map(|user| {
