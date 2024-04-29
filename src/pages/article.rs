@@ -9,13 +9,10 @@ use leptos_router::*;
 
 #[component]
 pub fn Article() -> impl IntoView {
-    let user = use_current_user();
     let params = use_params::<ArticleSlugParam>();
     let slug = Signal::derive(move || params().map(|p| p.slug).unwrap_or_default());
-    let article = create_blocking_resource(
-        move || (slug(), user().map(|u| u.username)),
-        |(slug, user)| get_article(slug, user),
-    );
+    let article = create_blocking_resource(slug, get_article);
+
     view! {
         <div class="article-page">
             <Suspense fallback=|| "Loading article...">
@@ -170,8 +167,9 @@ fn ArticleMeta(#[prop(into)] article: Signal<Article>, children: Children) -> im
 }
 
 #[server]
-async fn get_article(slug: String, user: Option<String>) -> Result<Article, ServerFnError> {
+async fn get_article(slug: String) -> Result<Article, ServerFnError> {
     tracing::info!("fetching article: {}", slug);
+    let user = crate::auth::authenticated_username();
     Ok(Article::get(&slug, user.as_deref()).await?)
 }
 
