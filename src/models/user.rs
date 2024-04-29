@@ -73,7 +73,6 @@ impl User {
     }
 
     pub async fn update(&self, password: Option<&str>) -> Result<(), sqlx::Error> {
-        // TODO: maybe allow changing username
         if let Some(password) = password.map(crate::auth::password::hash) {
             sqlx::query!(
                 "update user set
