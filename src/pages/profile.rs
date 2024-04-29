@@ -1,7 +1,8 @@
 use crate::{
-    app::{use_current_user, Feed, FeedKind, FollowButton, NavLink, NBSP},
+    app::{use_current_user, FollowButton, NavLink, NBSP},
     error_template::error_boundary_fallback,
     models::user::Profile,
+    pages::feed::{Feed, FeedKind},
 };
 use leptos::*;
 use leptos_router::*;
