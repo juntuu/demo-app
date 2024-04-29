@@ -20,7 +20,7 @@ create table if not exists article (
 	title text not null,
 	description text not null,
 	body text not null,
-	created_at text NOT NULL default (date('now')),
+	created_at text NOT NULL default (datetime('now')),
 	updated_at text null,
 
 	author text not null references user(username) on delete cascade on update cascade
@@ -29,7 +29,7 @@ create table if not exists article (
 create table if not exists comment (
 	id integer primary key,
 	body text NOT NULL,
-	created_at text NOT NULL default (date('now')),
+	created_at text NOT NULL default (datetime('now')),
 
 	article text not null references article(slug) on delete cascade on update cascade,
 	user text not null references user(username) on delete cascade on update cascade

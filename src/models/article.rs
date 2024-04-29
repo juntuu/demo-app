@@ -239,7 +239,7 @@ impl Article {
 
         let res = sqlx::query!(
             "
-                update article set title = ?, description = ?, body = ?, updated_at = (date('now'))
+                update article set title = ?, description = ?, body = ?, updated_at = (datetime('now'))
                 where slug = ? and author = ?
             ",
             title,
