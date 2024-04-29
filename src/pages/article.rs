@@ -288,8 +288,17 @@ async fn comments(slug: String) -> Result<Vec<Comment>, ServerFnError> {
     Ok(Comment::for_article(&slug).await?)
 }
 
+#[server]
+async fn delete_comment(id: i64) -> Result<(), ServerFnError> {
+    let author = crate::auth::require_login()?;
+    sqlx::query!("delete from comment where id = ? and user = ?", id, author)
+        .execute(crate::db::get())
+        .await?;
+    Ok(())
+}
+
 #[component]
-fn CommentCard(comment: Comment) -> impl IntoView {
+fn CommentCard(comment: Comment, children: Children) -> impl IntoView {
     let author = comment.author.clone();
     let link = profile_link(&author.username);
     view! {
@@ -297,15 +306,18 @@ fn CommentCard(comment: Comment) -> impl IntoView {
             <div class="card-block">
                 <p class="card-text">{&comment.body}</p>
             </div>
-            <div class="card-footer">
+            <div
+                class="card-footer"
+                style="display: flex; flex-direction: row; justify-content: center; gap: 5px"
+            >
                 <A href=link.clone() class="comment-author">
                     <ProfileImg src=author.image class="comment-author-img"/>
                 </A>
-                {NBSP}
                 <A href=link class="comment-author">
                     {&author.username}
                 </A>
                 <span class="date-posted">{&comment.created_at}</span>
+                {children()}
             </div>
         </div>
     }
@@ -319,13 +331,14 @@ async fn post_comment(article: String, comment: String) -> Result<i64, ServerFnE
 
 #[component]
 fn Comments(#[prop(into)] article_slug: Signal<String>) -> impl IntoView {
-    let post_comment = create_server_action::<PostComment>();
-    let version = post_comment.version();
-    let post_result = post_comment.value();
+    let user = use_current_user();
+    let delete = create_server_action::<DeleteComment>();
+    let post = create_server_action::<PostComment>();
+    let post_result = post.value();
 
     let comments = create_resource(
-        move || (article_slug(), version()),
-        |(slug, _)| comments(slug),
+        move || (article_slug(), post.version()(), delete.version()()),
+        |(slug, _, _)| comments(slug),
     );
 
     let comment_ref: NodeRef<html::Textarea> = create_node_ref();
@@ -348,22 +361,48 @@ fn Comments(#[prop(into)] article_slug: Signal<String>) -> impl IntoView {
         }
     });
 
+    let delete_button = move |id: i64| {
+        // Now a single action is shared between all comments, and thus
+        // all buttons will be disabled while one delete is pending.
+        //
+        // This is just fine.
+        view! {
+            <ActionForm action=delete>
+                <input type="hidden" name="id" value=id/>
+                <button
+                    type="submit"
+                    disabled=delete.pending()
+                    class="btn btn-sm btn-outline-danger"
+                >
+                    <i class="ion-trash-a"></i>
+                </button>
+            </ActionForm>
+        }
+    };
+
     // TODO: maybe "subscribe" for new comments and update real time
     let comment_list = move || {
         comments().map(|data| {
             data.map(|comments| {
-                view! {
-                    <For each=move || comments.clone() key=|comment| comment.id let:comment>
-                        <CommentCard comment=comment/>
-                    </For>
-                }
+                let user = user.with(|u| u.as_ref().map(|u| u.username.clone()));
+                comments
+                    .into_iter()
+                    .map(|comment| {
+                        let id = comment.id;
+                        if user.as_deref() == Some(&comment.author.username) {
+                            view! { <CommentCard comment=comment>{delete_button(id)}</CommentCard> }
+                        } else {
+                            view! { <CommentCard comment=comment>""</CommentCard> }
+                        }
+                    })
+                    .collect_view()
             })
         })
     };
 
     view! {
         <div class="col-xs-12 col-md-8 offset-md-2">
-            <ActionForm class="card comment-form" action=post_comment>
+            <ActionForm class="card comment-form" action=post>
                 <input type="hidden" name="article" value=article_slug/>
                 <div class="card-block">
                     <textarea
@@ -381,9 +420,9 @@ fn Comments(#[prop(into)] article_slug: Signal<String>) -> impl IntoView {
                     </button>
                 </div>
             </ActionForm>
-            <Suspense fallback=move || "Loading comments...">
+            <Transition fallback=move || "Loading comments...">
                 <ErrorBoundary fallback=error_boundary_fallback>{comment_list}</ErrorBoundary>
-            </Suspense>
+            </Transition>
         </div>
     }
 }
