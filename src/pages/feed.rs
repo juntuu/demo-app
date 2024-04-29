@@ -91,11 +91,7 @@ fn Pagination(#[prop(into)] page: Signal<Page>, count: u32) -> impl IntoView {
             })
             .collect_view()
     };
-    view! {
-        <ul class="pagination">
-        {page_links}
-        </ul>
-    }
+    view! { <ul class="pagination">{page_links}</ul> }
 }
 
 #[derive(Deserialize, Serialize, Clone, Copy, Debug, PartialEq, Eq)]
