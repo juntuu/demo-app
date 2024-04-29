@@ -2,7 +2,6 @@
 
 // TODO:
 // - some validation for user details
-// - pagination for feeds
 // - state propagation between views
 
 use crate::{
@@ -386,13 +385,20 @@ pub enum FeedKind {
     Tag(String),
 }
 
+#[derive(Deserialize, Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+struct Page {
+    offset: u32,
+    limit: NonZeroU8,
+}
+
 #[server]
-async fn get_feed(kind: FeedKind) -> Result<Feed, ServerFnError> {
+async fn get_feed(kind: FeedKind, page: Page) -> Result<Feed, ServerFnError> {
     use crate::models::article::FeedOptions;
 
     let options = FeedOptions {
         user: crate::auth::authenticated_username(),
-        ..Default::default()
+        offset: page.offset,
+        limit: page.limit.into(),
     };
     match kind {
         FeedKind::Feed => {
@@ -413,19 +419,69 @@ async fn get_feed(kind: FeedKind) -> Result<Feed, ServerFnError> {
 }
 
 #[component]
+fn Pagination(#[prop(into)] page: Signal<Page>, count: u32) -> impl IntoView {
+    let page_links = move || {
+        let Page { offset, limit } = page();
+        let limit = u8::from(limit) as u32;
+        (0..count)
+            .step_by(limit as usize)
+            .enumerate()
+            .map(|(page, start)| {
+                let class = if start <= offset && offset < start + limit {
+                    "page-item active"
+                } else {
+                    "page-item"
+                };
+                view! {
+                    <li class=class>
+                        <a class="page-link" href=format!("?offset={}&limit={}", start, limit)>
+                            {page + 1}
+                        </a>
+                    </li>
+                }
+            })
+            .collect_view()
+    };
+    view! {
+        <ul class="pagination">
+        {page_links}
+        </ul>
+    }
+}
+
+#[component]
 pub fn Feed(#[prop(into)] kind: MaybeSignal<FeedKind>, children: Children) -> impl IntoView {
-    let feed = create_blocking_resource(kind, get_feed);
+    let query = use_query_map();
+    let pagination = create_memo(move |_| {
+        query.with(|m| {
+            let offset = m
+                .get("offset")
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_default();
+            let limit = m
+                .get("limit")
+                .and_then(|s| s.parse().ok())
+                .and_then(NonZeroU8::new)
+                .unwrap_or_else(|| NonZeroU8::new(10).unwrap());
+            Page { offset, limit }
+        })
+    });
+    let feed = create_blocking_resource(
+        move || (kind(), pagination()),
+        |(kind, page)| get_feed(kind, page),
+    );
     let previews = move || {
         feed().map(|data| {
-            data.map(|articles| {
+            data.map(|Feed { articles, count }| {
                 view! {
                     <For
-                        each=move || articles.articles.clone()
+                        each=move || articles.clone()
                         key=|article| article.slug.clone()
                         let:article
                     >
                         <ArticlePreview article=create_rw_signal(article)/>
                     </For>
+                    <Pagination page=pagination count=count/>
                 }
             })
         })
@@ -440,20 +496,6 @@ pub fn Feed(#[prop(into)] kind: MaybeSignal<FeedKind>, children: Children) -> im
             <Suspense fallback=|| "Loading feed...">
                 <ErrorBoundary fallback=error_boundary_fallback>{previews}</ErrorBoundary>
             </Suspense>
-
-            // TODO
-            <ul class="pagination">
-                <li class="page-item active">
-                    <a class="page-link" href="">
-                        1
-                    </a>
-                </li>
-                <li class="page-item">
-                    <a class="page-link" href="">
-                        2
-                    </a>
-                </li>
-            </ul>
         </div>
     }
 }
