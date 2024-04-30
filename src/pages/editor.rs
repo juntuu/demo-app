@@ -96,8 +96,9 @@ fn EditorForm(
                         rows="8"
                         placeholder="Write your article (in markdown)"
                         name="body"
-                        prop:value=fields.as_ref().map(|a| a.body.clone()).unwrap_or_default()
-                    ></textarea>
+                    >
+                        {fields.as_ref().map(|a| a.body.clone()).unwrap_or_default()}
+                    </textarea>
                 </fieldset>
                 <fieldset class="form-group">
                     <input
