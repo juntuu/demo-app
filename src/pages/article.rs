@@ -5,6 +5,7 @@ use crate::{
     pages::profile::{profile_link, ProfileImg},
 };
 use leptos::*;
+use leptos_meta::Script;
 use leptos_router::*;
 
 #[component]
@@ -13,7 +14,12 @@ pub fn Article() -> impl IntoView {
     let slug = Signal::derive(move || params().map(|p| p.slug).unwrap_or_default());
     let article = create_blocking_resource(slug, get_article);
 
+    // Inject script to head for the markdown renderer component
     view! {
+        <Script
+            type_="module"
+            src="https://cdn.jsdelivr.net/gh/zerodevx/zero-md@2/dist/zero-md.min.js"
+        />
         <div class="article-page">
             <Suspense fallback=|| "Loading article...">
                 <ErrorBoundary fallback=error_boundary_fallback>
@@ -244,6 +250,8 @@ fn ArticleActions(#[prop(into)] article: RwSignal<Article>) -> impl IntoView {
 
 #[component]
 fn ArticleContent(article: Article) -> impl IntoView {
+    // The body is not affected by ArticleActions
+    let body = article.body.clone();
     let article = create_rw_signal(article);
     view! {
         <div class="banner">
@@ -256,20 +264,15 @@ fn ArticleContent(article: Article) -> impl IntoView {
         <div class="container page">
             <div class="row article-content">
                 <div class="col-md-12">
-                    // TODO: This is a bit of a hack, but let's roll with it for now
-                    <div id="content" style="all: initial">
-                        <pre>{move || article.with(|a| a.body.clone())}</pre>
-                        <div></div>
+                    // A bit of a hack to reset styles
+                    <div style="all: initial">
+                        <noscript>
+                            <pre>{&body}</pre>
+                        </noscript>
+                        <zero-md>
+                            <script type="text/markdown">{&body}</script>
+                        </zero-md>
                     </div>
-                    // <script type="module">
-                    // "
-                    // import { marked } from 'https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js';
-                    // import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.1.0/+esm'
-                    // const [pre, target] = document.getElementById('content').children;
-                    // pre.style.display = 'none';
-                    // target.innerHTML = DOMPurify.sanitize(marked.parse(pre.textContent));
-                    // "
-                    // </script>
                     <TagList outline=true tags=move || article.with(|a| a.tags.clone())/>
                 </div>
             </div>
