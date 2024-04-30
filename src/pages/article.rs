@@ -42,8 +42,8 @@ pub fn ArticlePreview(#[prop(into)] article: RwSignal<Article>) -> impl IntoView
                 <h1>{move || article.with(|a| a.title.clone())}</h1>
                 <p>{move || article.with(|a| a.description.clone())}</p>
                 <span>Read more...</span>
-                <TagList outline=true tags=move || article.with(|a| a.tags.clone())/>
             </A>
+            <TagList outline=true tags=move || article.with(|a| a.tags.clone())/>
         </div>
     }
 }
