@@ -107,13 +107,6 @@ fn EditorForm(
                         name="tags"
                         value=fields.as_ref().map(|a| a.tags.join(" "))
                     />
-                    // TODO: client side fancy stuff for tags
-                    <div class="tag-list">
-                        <span class="tag-default tag-pill">
-                            <i class="ion-close-round"></i>
-                            tag
-                        </span>
-                    </div>
                 </fieldset>
                 <button
                     disabled=action.pending()
