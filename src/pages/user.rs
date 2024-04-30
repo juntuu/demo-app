@@ -3,8 +3,6 @@ use leptos_router::*;
 
 use crate::app::use_current_user;
 
-type VoidAction<T> = Action<T, Result<(), ServerFnError>>;
-
 #[component]
 fn ErrorList(#[prop(into)] errors: Signal<Vec<String>>) -> impl IntoView {
     view! {
@@ -17,7 +15,7 @@ fn ErrorList(#[prop(into)] errors: Signal<Vec<String>>) -> impl IntoView {
 }
 
 #[component]
-pub fn Login(login: VoidAction<crate::auth::Login>) -> impl IntoView {
+pub fn Login(login: crate::auth::LoginAction) -> impl IntoView {
     let errors = create_rw_signal(Vec::new());
     create_effect(move |_| {
         if let Some(Err(_)) = login.value()() {
@@ -66,7 +64,7 @@ pub fn Login(login: VoidAction<crate::auth::Login>) -> impl IntoView {
 }
 
 #[component]
-pub fn Register(register: VoidAction<crate::auth::Register>) -> impl IntoView {
+pub fn Register(register: crate::auth::RegisterAction) -> impl IntoView {
     let errors = create_rw_signal(Vec::new());
     create_effect(move |_| {
         if let Some(Err(err)) = register.value()() {
@@ -153,7 +151,7 @@ async fn settings(
 
 // TODO: propagate changes to other part of app e.g. profile image
 #[component]
-pub fn Settings(logout: VoidAction<crate::auth::Logout>) -> impl IntoView {
+pub fn Settings(logout: crate::auth::LogoutAction) -> impl IntoView {
     let settings = create_server_action::<Settings>();
 
     // Hack to signal about update

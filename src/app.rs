@@ -67,7 +67,7 @@ pub fn App() -> impl IntoView {
                     view=move || {
                         view! {
                             <header>
-                                <Nav/>
+                                <Nav logout=logout/>
                             </header>
                             <main>
                                 <Outlet/>
@@ -171,7 +171,7 @@ pub fn NavLink(#[prop(into)] href: MaybeSignal<String>, children: Children) -> i
 pub(crate) const NBSP: &str = "\u{A0}";
 
 #[component]
-fn Nav() -> impl IntoView {
+fn Nav(logout: crate::auth::LogoutAction) -> impl IntoView {
     let user = use_current_user();
     let links = move || {
         if let Some(user) = user() {
@@ -190,6 +190,13 @@ fn Nav() -> impl IntoView {
                     <ProfileImg src=user.image class="user-pic"/>
                     {user.username}
                 </NavLink>
+                <li class="nav-item">
+                    <ActionForm action=logout>
+                        {NBSP} <button type="submit" class="btn btn-outline-danger">
+                            Logout
+                        </button>
+                    </ActionForm>
+                </li>
             }
         } else {
             view! {

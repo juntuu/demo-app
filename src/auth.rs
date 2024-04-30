@@ -2,6 +2,10 @@ use leptos::*;
 
 use crate::models::user::User;
 
+pub(crate) type LoginAction = Action<Login, Result<(), ServerFnError>>;
+pub(crate) type LogoutAction = Action<Logout, Result<(), ServerFnError>>;
+pub(crate) type RegisterAction = Action<Register, Result<(), ServerFnError>>;
+
 #[server]
 pub async fn register(
     username: String,
