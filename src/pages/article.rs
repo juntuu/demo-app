@@ -252,6 +252,10 @@ fn ArticleActions(#[prop(into)] article: RwSignal<Article>) -> impl IntoView {
 fn ArticleContent(article: Article) -> impl IntoView {
     // The body is not affected by ArticleActions
     let body = article.body.clone();
+    let md_src = format!(
+        "/raw/article/{}/{}",
+        &article.author.username, &article.slug
+    );
     let article = create_rw_signal(article);
     view! {
         <div class="banner">
@@ -269,9 +273,7 @@ fn ArticleContent(article: Article) -> impl IntoView {
                         <noscript>
                             <pre>{&body}</pre>
                         </noscript>
-                        <zero-md>
-                            <script type="text/markdown">{&body}</script>
-                        </zero-md>
+                        <zero-md src=md_src></zero-md>
                     </div>
                     <TagList outline=true tags=move || article.with(|a| a.tags.clone())/>
                 </div>
