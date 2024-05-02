@@ -1,3 +1,5 @@
+cargo-features = ["profile-rustflags"]
+
 [package]
 name = "demo-app"
 version = "0.1.0"
@@ -56,6 +58,7 @@ opt-level = 'z'
 lto = true
 codegen-units = 1
 panic = "abort"
+rustflags = ["-Z", "location-detail=none"]
 
 [package.metadata.leptos]
 # The name used by wasm-bindgen/cargo-leptos for the JS/WASM bundle. Defaults
