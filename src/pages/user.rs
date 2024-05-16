@@ -187,8 +187,9 @@ pub fn Settings(logout: crate::auth::LogoutAction) -> impl IntoView {
                                 rows="8"
                                 placeholder="Short bio about you"
                                 name="bio"
-                                value=user.bio
-                            ></textarea>
+                            >
+                                {user.bio.unwrap_or_default()}
+                            </textarea>
                         </fieldset>
                         <fieldset class="form-group">
                             <input
