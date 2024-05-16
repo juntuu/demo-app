@@ -48,6 +48,8 @@ pub fn Profile() -> impl IntoView {
         profile().map(|p| {
             p.map(|p| {
                 let p = create_rw_signal(p);
+                // This updates "too much" by setting the whole profile, but now it works.
+                let profile = (p, move |v| profile.set(Ok(v)));
                 view! {
                     <div class="col-xs-12 col-md-10 offset-md-1">
                         <ProfileImg src=p().image class="user-img"/>
@@ -61,7 +63,7 @@ pub fn Profile() -> impl IntoView {
                             }
 
                             fallback=move || {
-                                view! { <FollowButton class="action-btn" profile=p.split()/> }
+                                view! { <FollowButton class="action-btn" profile=profile/> }
                             }
                         >
 
